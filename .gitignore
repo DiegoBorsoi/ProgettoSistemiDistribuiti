@@ -1,0 +1,10 @@
+# file da ignorare per latex
+*.aux
+*.dvi
+*.log
+*.out
+*.synctex.gz
+
+## IGOR LOCAL
+
+## DIEGO LOCAL
