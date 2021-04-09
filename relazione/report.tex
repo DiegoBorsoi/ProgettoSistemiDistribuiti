@@ -1,10 +1,13 @@
 \documentclass{memoir}
 
-\title{How to write a Report\\ for the Project of Distributed Systems}
+\usepackage{amsmath}
 
-\author{Prof. Marino Miculan\\ DMIF, University of Udine, Italy}
+%\title{How to write a Report\\ for the Project of Distributed Systems}
+\title{Progetto di Sistemi Distribuiti}
 
-\date{Version 0.2, \today}
+\author{Dott. Diego Borsoi\\Dott. Filippo Callegari\\ DMIF, University of Udine, Italy}
+
+\date{Version 0.1, \today}
 
 \begin{document}
 
@@ -19,18 +22,110 @@ This document is very brief and succint, and it is by no means comprehensive of 
 \end{abstract}
 %\end{titlingpage}
 
-\chapter{Introduction}\label{ch:intro}
+\chapter{Introduzione}\label{ch:intro}
 
-In this chapter you describe the main problem, and an idea of the solution.
-It is not necessary to be very detailed or formal, but it is important to explain which are the main aims and issues from the point of view of Distributed Systems:
+Il progetto in questione riguarda la creazione di un sistema distribuito per la comunicazione fra dispositivi all'interno di una rete sparsa, tramite l'utilizzo di eventi.
+
+\section{Descrizione del problema}
+
+Ogni dispositivo corrisponde ad un nodo della rete ed è caratterizzato da:
 \begin{itemize}
-\item A description of the application.
-\item The overall structure of the implementation: how resources are deployed, which are the players, the r\^oles.
-\item The distributed system features (and the transparencies) and algorithms you intend to implement.
-\item Your plan for testing the system.
-\item A schedule for how you plan to carry our your design and implementation
+\item \textbf{Id} : numero univoco del nodo.
+\item \textbf{Stato} : tupla di variabili che rappresentano delle specifiche caratteristiche del nodo (es. temperatura di un sensore, stato di accensione di una termocoppia, ecc).
+\item \textbf{Regole} : insieme di regole del tipo ECA (Event Condition Action) che possono attivarsi a seguito di un evento inviato al nodo. Queste regole possono essere di due tipi: locali, l'azione modifica solamente lo stato del nodo in cui si attiva, oppure globale, l'azione viene inviata a tutti i nodi della rete perché venga letta ed, in caso la valutazione della guardia associata sia positiva, eseguita.
+\center$\{event;~condition;~action~|~\text{if}~guard~\text{then}~action\}$
 \end{itemize}
 
+Lo stato della rete si evolverà ogni qual volta un evento verrà attivato, andando a sua volta ad innescare eventuali nuovi eventi e creando quindi una sequenza di azioni a cascata.
+
+\section{Struttura dell'implementazione}
+
+La rete in questione ha una struttura a mesh sparsa (cioè ogni nodo sarà al più connesso a un numero di nodi molto basso, rispetto alla totalità).
+I nodi sono idempotenti in modo tale da avere un sistema fortemente decentralizzato.
+Le varie comunicazioni fra i nodi sono eseguite al di sopra di connessioni TCP, in tal modo possiamo garantire la consegna di ogni messaggio nell'ordine prestabilito.
+Per quanto concerne invece le comunicazioni riguardanti il sistema di $heartbeat$ (TODO: link al capitolo), queste vengono eseguite utilizzando connessioni UDP.
+
+\section{Trasparenze}
+
+Di seguito sono descritte le trasparenze che concergono e sono implementate dal sistema:
+
+\begin{description} 
+\item[Trasparenza ai fallimenti:] nel momento in cui un nodo fallisce/si disconnette, il resto della rete continua a funzionare normalmente.
+\item[Trasparenza alla scalabilità:] la rete può espandersi in dimensione senza che il funzionamento dei nodi vari.
+\item[Trasparenza alla mobilità:] un nodo può spostarsi all'interno della rete senza che il funzionameto suo e degli altri nodi vada a modificarsi.
+\end{description}
+
+\section{Algoritmi}
+
+Il sistema implementa solamente due algoritmi:
+\begin{itemize}
+\item \textbf{Flooding Algorithm:} viene usato per la comunicazione di un'azione a tutta la rete nel momento in cui in un nodo una regola globale viene attivata.
+\item \textbf{Lamport clock (modificato):} viene utilizzata una versione modificata del Lamport clock per identificare i vari $flood$ eseguiti; questo clock viene incrementato solamente dall'invio (o ricezione) di un messasggio, e non dalle azioni interne ad un nodo.
+\end{itemize}
+
+Il sistema non implementa particolari algoritmi essendo che si vuole realizzare una rete distribuita dove ogni nodo conosce esclusivamente i vicini ed evolve il suo stato solamente a causa di eventi ricevuti tramite dei messaggi.
+
+\section{Testing}
+
+Per testare il sistema verrà utilizzata un'entità $Ambiente$, la quale simulerà: 
+\begin{itemize}
+\item la creazione iniziale della rete, caricando da dei file appositi la struttura degli stati, la lista di regole e la conformazione della rete
+\item la scoperta di nuove connessioni
+\item variazioni di variabili legate all'ambiente (es. temperatura registrata da un sensore)
+\item fallimenti di nodi
+\item ritardi nell'invio di messaggi fra nodi
+\end{itemize}
+
+Ogni modulo verrà testato singolarmente ed infine verranno eseguiti dei test completi del sistema.
+
+\section{Piano di sviluppo}
+
+Le future fasi di sviluppo seguiranno il seguente ordine:
+\begin{enumerate}
+\item Riunione con il committente per convalidare la risoluzione del problema
+\item Implementazione ambiente virtuale per la gestione dei nodi 
+\item Implementazione della struttura del nodo
+\item Implementazione sistema $heartbeat$
+\item Implementazione del sistema algoritmico
+\item Test totale
+\item Validazione
+\end{enumerate}
+
+
+%\section{Istruzioni}
+%In this chapter you describe the main problem, and an idea of the solution.
+%It is not necessary to be very detailed or formal, but it is important to explain which are the main aims and issues from the point of view of Distributed Systems:
+%\begin{itemize}
+%\item A description of the application.
+%\item The overall structure of the implementation: how resources are deployed, which are the players, the r\^oles.
+%\item The distributed system features (and the transparencies) and algorithms you intend to implement.
+%\item Your plan for testing the system.
+%\item A schedule for how you plan to carry out your design and implementation
+%\end{itemize}
+
+\chapter{Analisi}\label{ch:analisi}
+
+In questo capitolo vengono descritti nel dettaglio requisiti funzionali e non funzionali della soluzione proposta.
+
+\section{Requisiti Funzionali}
+
+I requisiti funzionali individuati sono:
+\begin{itemize}
+\item \textbf{Categorizzazione di un nodo}
+\item \textbf{Modica dello stato e/o delle regole di un nodo}
+\item \textbf{Aggiunta dinamica di un nodo}
+\end{itemize}
+
+\section{Requisiti Non Funzionali}
+
+I requisiti non funzionali individuati sono:
+\begin{itemize}
+\item \textbf{Decentralizzazione}
+\item \textbf{Tolleranza ai guasti}
+\item \textbf{Etereogenità}
+\item \textbf{Scalabilità}
+\item \textbf{Trasparenze} TODO: indirizza a prima
+\end{itemize}
 
 
 \chapter{Analysis}\label{ch:analysis}
