@@ -3,6 +3,9 @@
 \usepackage[utf8]{inputenc}
 \usepackage[italian]{babel}
 \usepackage{amsmath}
+\usepackage{graphicx}
+
+\graphicspath{{./draws/}}
 
 %\title{How to write a Report\\ for the Project of Distributed Systems}
 \title{Progetto di Sistemi Distribuiti}
@@ -158,6 +161,24 @@ In questo capitolo vengono descritti in modo più approfondito l'achitettura del
 
 \section{Architettura logica}
 
+Essendo tutti i nodi costruiti al medesimo modo, di seguito presentiamo la struttura di uno singolo di essi. 
+
+\begin{figure}[h]
+\includegraphics[scale=0.6]{draw_nodeworker.pdf}
+\centering
+\caption{Struttura gerarchica dei moduli di un nodo e visualizzazione delle connessioni fra di essi.}
+\label{img:struttura_nodo}
+\end{figure}
+
+
+Come si può vedere dalla figura \ref{img:struttura_nodo}, ogni nodo è formato dai seguenti moduli:
+\begin{itemize}
+\item \textbf{Supervisor nodo:}
+\item \textbf{State server:}
+\end{itemize}
+
+% TODO: cambiare environment in ambiente nel disegno
+Come è stato accennato in precedenza verrà sviluppato un ulteriore modulo chiamato \textbf{\textit{Ambiente}}: questo modulo ...
 
 
 \section{Protocolli ed algoritmi}
