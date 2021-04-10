@@ -1,5 +1,7 @@
 \documentclass{memoir}
-
+\usepackage{lmodern}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
 \usepackage{amsmath}
 
 %\title{How to write a Report\\ for the Project of Distributed Systems}
@@ -45,7 +47,7 @@ I nodi sono idempotenti in modo tale da avere un sistema fortemente decentralizz
 Le varie comunicazioni fra i nodi sono eseguite al di sopra di connessioni TCP, in tal modo possiamo garantire la consegna di ogni messaggio nell'ordine prestabilito.
 Per quanto concerne invece le comunicazioni riguardanti il sistema di $heartbeat$ (TODO: link al capitolo), queste vengono eseguite utilizzando connessioni UDP.
 
-\section{Trasparenze}
+\section{Trasparenze}\label{Trasparenze}
 
 Di seguito sono descritte le trasparenze che concergono e sono implementate dal sistema:
 
@@ -111,57 +113,69 @@ In questo capitolo vengono descritti nel dettaglio requisiti funzionali e non fu
 
 I requisiti funzionali individuati sono:
 \begin{itemize}
-\item \textbf{Categorizzazione di un nodo}
-\item \textbf{Modica dello stato e/o delle regole di un nodo}
-\item \textbf{Aggiunta dinamica di un nodo}
+\item \textbf{Categorizzazione di un nodo:} ogni nodo ha un tipo il quale ne identifica lo stato e le sue regole;
+\item \textbf{Modifica delle regole di un nodo:} ogni tipo di nodo può avere le sue regole, codificabili attraverso la programmazione dello stesso;
+\item \textbf{Modifica dello stato di un nodo:} ogni evento permette di avere o degli \textit{effetti locali} o degli \textit{effetti globali}:
+	\begin{itemize}
+	\item \textit{\textbf{effetti locali}}: la regola va a modificare lo stato interno;
+	\item \textit{\textbf{effetti globali}}: la regola può modificare lo stato delle variabili interne, e può generare un evento sugli altri nodi;
+	\end{itemize}
+\item \textbf{Aggiunta dinamica di un nodo:} un nodo può essere aggiunto alla rete in qualsiasi momento senza perturbarne la dinamicità, limitando l'aggiornamento ai vicini a cui si collega.
 \end{itemize}
 
 \section{Requisiti Non Funzionali}
 
 I requisiti non funzionali individuati sono:
 \begin{itemize}
-\item \textbf{Decentralizzazione}
-\item \textbf{Tolleranza ai guasti}
-\item \textbf{Etereogenità}
-\item \textbf{Scalabilità}
-\item \textbf{Trasparenze} TODO: indirizza a prima
+\item \textbf{Decentralizzazione:} nessun nodo ha il controllo dell'ordine degli eventi, grazie al fatto che ogni nodo è idempotente;
+\item \textbf{Tolleranza ai guasti:} poichè tutti i nodi sono idempotenti, nel momento in cui un nodo si scollega dalla rete, la rete rimanente continua ad operare normalmente;
+\item \textbf{Etereogenità:} fintanto che i nodi aggiunti utilizzano il protocollo descritto, qualunque nodo di qualunque tipo (hardware o categoria) potrà essere aggiunto alla rete;
+\item \textbf{Scalabilità:} l'aggiunta dinamica dei nodi alla rete permette di scalare orizzontalmente con estrema facilità;
+\item \textbf{Trasparenze:} le trasparenze implementate sono quelle descritte al capitolo precedente (paragrafo \ref{Trasparenze}).
 \end{itemize}
 
-
-\chapter{Analysis}\label{ch:analysis}
-
-In this chapter, we describe in detail functional and non-functional requirements of a solution for the problem.
-
-\section{Functional requirements}
-Which functions must be offered to users / other programs?  Which are the input data and the output data? Which is the expected effect? 
-
-\section{Non functional requirements}
-Everything about mode and transparencies: availability, mobility, security, fault tolerance, etc.
-
-Are there execution time bounds? Minimum data rates?
-
-If requested, specific platforms/languages/middlewares requirements for the implementation can be decided here. (E.g.: if the project is on a SOA, we may request that functions are offered via SOAP or RESTful services). 
+%\chapter{Analysis}\label{ch:analysis}
+%
+%In this chapter, we describe in detail functional and non-functional requirements of a solution for the problem.
+%
+%\section{Functional requirements}
+%Which functions must be offered to users / other programs?  Which are the input data and the output data? Which is the expected effect? 
+%
+%\section{Non functional requirements}
+%Everything about mode and transparencies: availability, mobility, security, fault tolerance, etc.
+%
+%Are there execution time bounds? Minimum data rates?
+%
+%If requested, specific platforms/languages/middlewares requirements for the implementation can be decided here. (E.g.: if the project is on a SOA, we may request that functions are offered via SOAP or RESTful services). 
 
 
 
 \chapter{Project}
 
-This chapter is devoted to the description of the general architectures, and specific algorithms.
+questo capitolo spiegherà più in dettaglio l'architettura e gli algoritmi utilizzati.
 
-\section{Logical architecture}
-Describe the components of your systems: modules/objects/components/services.
-For each component, describe the functionalities it implements, and by who is used.
+\section{Architettura logica}
+\section{Protocolli ed algoritmi}
+\section{Architettura fisica e deployment}
+\section{Piano di sviluppo}
 
-\section{Protocols and algorithms}
-Communication between components.  UML sequence diagrams go here.
 
-Also, put here a detailed description of distributed algorithms used to solve specific problems of the project.
-
-\section{Physical architecture and deployment}
-Which nodes and platforms involved, and where each component is deployed.
-
-\section{Development plan}
-Since it is difficult to predict just how hard implementing a new system will be, you should formulate as a set of ``tiers,'' where the basic tier is something you’re sure you can complete, and the additional tiers add more features, at both the application and the system level.
+%This chapter is devoted to the description of the general architectures, and specific algorithms.
+%
+%\section{Logical architecture}
+%Describe the components of your systems: modules/objects/components/services.
+%For each component, describe the functionalities it implements, and by who is used.
+%
+%\section{Protocols and algorithms}
+%Communication between components.  UML sequence diagrams go here.
+%
+%Also, put here a detailed description of distributed algorithms used to solve specific problems of the project.
+%
+%\section{Physical architecture and deployment}
+%Which nodes and platforms involved, and where each component is deployed.
+%
+%\section{Development plan}
+%Since it is difficult to predict just how hard implementing a new system will be, you should formulate as a set of ``tiers,'' where the basic tier is something you’re sure you can complete, and the additional tiers add more features, at both the application and the system level.
 
 \chapter{Implementation}
 
