@@ -121,6 +121,8 @@ I requisiti funzionali individuati sono:
 	\item \textit{\textbf{effetti globali}}: la regola può modificare lo stato delle variabili interne, e può generare un evento sugli altri nodi;
 	\end{itemize}
 \item \textbf{Aggiunta dinamica di un nodo:} un nodo può essere aggiunto alla rete in qualsiasi momento senza perturbarne la dinamicità, limitando l'aggiornamento ai vicini a cui si collega.
+\item \textbf{Esecuzione di un'azione ricevuta dai vicini:} nel momento in cui un nodo riceve un messaggio dai propri vicini esso va a verificare la soddisfacibilità della guardia (se presente) e nel caso di una valutazione positiva viene eseguita l'azione associata, andando quindi a modificare il proprio stato.
+\item \textbf{Attivazione di una regola:} ogni qual volta avviene un cambiamento nello stato di un nodo, viene eseguito un controllo delle regole, per vedere se gli eventi generati possano attivare una o più regole del nodo; nel caso in cui una regola venga attivata, in base al tipo (locale o globale) viene portata a termine l'azione corrispondente.
 \end{itemize}
 
 \section{Requisiti Non Funzionali}
@@ -150,11 +152,14 @@ I requisiti non funzionali individuati sono:
 
 
 
-\chapter{Project}
+\chapter{Progetto}\label{ch:progetto}
 
-questo capitolo spiegherà più in dettaglio l'architettura e gli algoritmi utilizzati.
+In questo capitolo vengono descritti in modo più approfondito l'achitettura del progetto, i moduli, i protoclli e gli algoritmi utilizzati.
 
 \section{Architettura logica}
+
+
+
 \section{Protocolli ed algoritmi}
 \section{Architettura fisica e deployment}
 \section{Piano di sviluppo}
