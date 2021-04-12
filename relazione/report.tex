@@ -301,20 +301,92 @@ Dal punto di vista del nodo ci troviamo quindi costretti ad aggiungere un ulteri
 
 Di seguito verranno descriti nel dettaglio i vari protocolli ed algoritmi utilizzati.
 
+\subsection{Heartbeat}
+L'algoritmo di ``heartbeat'' serve per mantenere consistente lo stato dei vicini
+	   di un nodo. Questo infatti controlla la loro vitalità e sarà componente chiave
+	   per l'aggiunta di un nuovo nodo.
+
+L'algoritmo si suddivide quindi in due componenti:
+\begin{itemize}
+	\item \textit{ECHO}: similmente al protocollo ICMP, si fa una richiesta di echo
+	   al vicino. Se questa ``\textit{ECHO\_RQS}" andrà a buon fine, il primo nodo che
+	   istanzia una richiesta di ``\textit{ECHO}" richeverà un pacchetto di ``\textit{ECHO\_RPL}".
+	   Definiamo come $\tau$ il tempo che intercorre tra un messaggio di \textit{ECHO} ed
+	   un'altro. Se un nodo non rispondesse entro $2\tau$ ad una \textit{ECHO\_RQS}, questo
+	   verrà considerato come non più collegato. Ogni\textit{ECHO\_RPL} conterrà il ``Lamport"
+	   attuale del vicino.
+	\item \textit{ADD\_NEW\_ND}: similmente al protocollo DHCP, nella fase di aggiunta
+	   di un nodo alla rete, il nuovo nodo si annuncia al suo vicino ``fisico'', chiedendo
+	   le informazioni essenziali per poter partecipare attivamente alla rete. Questo sarà
+	   spiegato più in dettaglio nella prossima sezione.
+\end{itemize}
 \subsection{Aggiunta di un nuovo nodo}
-\subsection{}
+L'aggiunta di un nodo è una parte complicata del sistema: bisogna tener conto della
+	   possibilità che la rete si partizioni. Questo si può verificare nel caso in cui
+	   un nodo si riavvii. Il partizionamento della rete è visto come caso particolare
+	   di aggiunta di un nodo alla rete.
+
+L'aggiunta di un nuovo nodo si compone dei seguenti passi:
+\begin{enumerate}
+	\item \textit{ADD\_NEW\_ND}: il nuovo nodo manda la richiesta di aggiunta alla rete
+	   a tutti i suoi vicini inviando il proprio id;
+	\item \textit{ADD\_NEW\_NB}: il nodo che deve aggiungere il nuovo nodo risponde
+	   con un messaggio contenente $(lamport,id)$.
+\end{enumerate}
+A questo punto, una volta che per ogni vicino ho i suoi parametri di lamport, i casi
+	   possibili sono 2:
+\begin{enumerate}
+	\item \textbf{tutti i nodi hanno medesimo lamport:} setto il mio lamport al lamport
+	   comune;
+	\item \textbf{esiste un lamport massimo:} setto il mio lamport al valore massimo,
+	   e rispondo con \textit{UPD\_LMP} a tutti i miei vicini che non hanno il lamport al
+	   massimo. Questi a loro volta manderanno a tutti i loro vicini, con lamport diverso
+	   da quello scelto, il nuovo valore.
+\end{enumerate}
+L'esecuzione dei messaggi sarà affrontata separatamente.
 
 \subsection{Algoritmo: Flooding}
+Ogni qual volta si crea una regola che genera un evento "globale", ogni nodo spedirà
+	   ai suoi vicini un messaggio contenenta un'azione da eseguire. Questi, una volta ricevuto,
+	   aggiorneranno il loro "wave count" (tenuto dal Lamport modificato, spiegato successivamente),
+	   e passerà all'esecuzione dell'istruzione condizionata contenuto nel messaggio. Al
+	   fine di evitar la presenza di messaggi vecchi nella rete, ogni messaggio conterrà
+	   la coppia $(lamport,id\_gen)$: questo verrà salvato localmente nel nodo ricevente,
+	   e verrà mantenuto in memoria al fine di verificare se un messaggio ricevuto non
+	   è già stato eseguito. Ogni nodo quindi spedirà una copia del messaggio a tutti
+	   i suoi vicini (a patto non l'abbia già ricevuto in passato), meno a quello da cui
+	   l'ha ricevuto. Queste strategie applicate faranno si che i messaggi circolanti nella
+	   rete siano il minor numero possibile, e nell'eventuale creazioni di cicli nella rete,
+	   dovuta alla topologia della stessa, siano soppressi alla prima occasione utile.
+
 \subsection{Algoritmo: Lamport modificato}
+Il ``Clock di Lamport" ci permette di dare una certa conseguenza temporale alle azioni.
+	   Questo sarà un numero intero crescente, ed identificherà ogni wave generata. Alla
+	   generazione di una wave ogni nodo userà il suo lamport interno, incrementato, per
+	   identificarla. Questo ci permette, come già abbiamo spiegato, di controllare la
+	   propagazione dei messaggi. Sia quindi $Lmp_i$ il lamport della nuova wave ricevuta
+	   e $Lmp_n$ il lamport del nodo corrente. Le azioni intraprendibili sono:
+\begin{itemize}
+	\item $Lmp_i = Lmp_n + 1$: eseguo immediatamente l'azione in essa contenuta ed aggiorno
+	   il valore di $Lmp_n$;
+	\item $Lmp_i > Lmp_n + 1$: aspetto un preimpostato timeout (es: $5\tau$) prima di
+	   eseguire l'azione di $Lmp_i$, in modo tale da poter ricevere le wave mancanti, e
+	   quindi mantenere l'ordine causale delle azioni;
+	\item $Lmp_i < Lmp_n$: vado ad eseguire l'azione solo nel caso in cui tutte le variabili
+	   coinvolte non siano già state modificate da una wave ad essa successiva, cioè con
+	   $lamport > Lmp_i$.
+\end{itemize}
 
 \section{Architettura fisica e deployment}
 Per quanto riguarda l'architettura fisica è necessario l'utilizzo di microcalcolatori,
 	   come dei ``Raspberry" o degli ``Arduino". Ogni nodo corrisponderebbe fisicamente
-	   ad una di queste schede, avendo quindi la possibilità d'utilizzare più nodi per
+	   ad una di queste schede, avendo quindi la possibilità d'utilizzare più nodi
+	   per
 	   il medesimo ``apparato".
 
 Non è strettamente necessario l'ausilio di microcalcolatori: potrei concentrare
-	   all'interno di un singolo calcolatore più nodi, a patto che siano gestiti in maniera
+	   all'interno di un singolo calcolatore più nodi, a patto che siano gestiti in
+	   maniera
 	   consona. 
 
 Come descritto in precedenza, questi comunicherebbero con protocollo TCP ed UDP,
@@ -373,8 +445,8 @@ Sono state inoltre individuate le seguenti \textbf{funzionalità avanzate}:
 %	   middlewares, which has not been decided in the requirements.
 %
 %
-%Important choices about implementation should be described here; e.g., peculiar data
-%	   structures.
+%Important choices about implementation should be described here; e.g., peculiar
+%	   data structures.
 
 
 %\chapter{Validation}
@@ -408,8 +480,8 @@ Sono state inoltre individuate le seguenti \textbf{funzionalità avanzate}:
 %	   overall architecture and the detailed realization.
 %\item You should devise and apply systematic testing procedures, at both the unit
 %	   and systems levels.
-%\item The system should operate reliably and with good performance, even in the face
-%	   of failures.
+%\item The system should operate reliably and with good performance, even in the
+%	   face of failures.
 %\end{itemize}
 %Important, but secondary considerations include:
 %\begin{itemize}
