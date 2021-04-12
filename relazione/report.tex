@@ -26,7 +26,7 @@
 %It is also a guideline for the development of the project itself.
 %
 %This document is very brief and succint, and it is by no means comprehensive of
-	   all
+%	   all
 %	   the informations that should be given about a software project. You are invited
 %	   to
 %	   supplement these guidelines as needed to best describe your work.
@@ -228,7 +228,7 @@ I requisiti non funzionali individuati sono:
 \chapter{Progetto}\label{ch:progetto}
 
 In questo capitolo vengono descritti in modo più approfondito l'achitettura del
-	   progetto, i moduli, i protoclli e gli algoritmi utilizzati.
+	   progetto, i moduli, i protocolli e gli algoritmi utilizzati.
 
 \section{Architettura logica}
 
@@ -242,7 +242,6 @@ Essendo tutti i nodi costruiti al medesimo modo, di seguito presentiamo la strut
 	   fra di essi.}
 \label{img:struttura_nodo}
 \end{figure}
-
 
 Come si può vedere dalla figura \ref{img:struttura_nodo}, ogni nodo è formato dai
 	   seguenti moduli:
@@ -275,14 +274,14 @@ Come si può vedere dalla figura \ref{img:struttura_nodo}, ogni nodo è formato 
 	   vicini ed eventualmente eseguire una delle regole a lui locali al momento dell'attivazione;
 	   lui si occuperà anche di propagare le regole che generano degli eventi verso
 	   gli
-	   altri nodi, interpellando il modulo ``\textit{communication out}''.
+	   altri nodi, interpellando il modulo ``\textit{communication out}'' 
+	  (modulo apposito per l'invio dei messaggi ai nodi vicini).
 		\end{itemize}
 	\end{itemize}
 \end{itemize}
 
 % TODO: cambiare environment in ambiente nel disegno
 Come è stato accennato in precedenza verrà sviluppato un ulteriore modulo chiamato
-	   
 ``\textbf{\textit{Ambiente}}": questo modulo permette di simulare le interazioni
 	   che avverrebbero nel mondo reale. Nel dettaglio, le funzionalità del modulo
 	   sono:
@@ -299,6 +298,14 @@ Dal punto di vista del nodo ci troviamo quindi costretti ad aggiungere un ulteri
 	   con l'ambiente.
 
 \section{Protocolli ed algoritmi}
+
+Di seguito verranno descriti nel dettaglio i vari protocolli ed algoritmi utilizzati.
+
+\subsection{Aggiunta di un nuovo nodo}
+\subsection{}
+
+\subsection{Algoritmo: Flooding}
+\subsection{Algoritmo: Lamport modificato}
 
 \section{Architettura fisica e deployment}
 Per quanto riguarda l'architettura fisica è necessario l'utilizzo di microcalcolatori,
@@ -327,7 +334,6 @@ Le \textbf{funzionalità di base} che verranno implementate sono:
 	\item programmazione dei nodi;
 	\item sistema basico d'esecuzione delle regole.
 \end{itemize}
-
 Sono state inoltre individuate le seguenti \textbf{funzionalità avanzate}:
 \begin{itemize}
 	\item sistema avanzato d'esecuzione delle regole;
@@ -360,56 +366,57 @@ Sono state inoltre individuate le seguenti \textbf{funzionalità avanzate}:
 %	   application
 %	   and the system level.
 
-\chapter{Implementation}
 
-Details about the implementation: every choice about platforms, languages, software/hardware,
-	   middlewares, which has not been decided in the requirements.
-
-
-Important choices about implementation should be described here; e.g., peculiar data
-	   structures.
-
-
-\chapter{Validation}
-
-Check if requirements from Chapter~\ref{ch:analysis} have been fulfilled.
-Quantitative tests (simulations) and screenshots of the interfaces are put here.
+%\chapter{Implementation}
+%
+%Details about the implementation: every choice about platforms, languages, software/hardware,
+%	   middlewares, which has not been decided in the requirements.
+%
+%
+%Important choices about implementation should be described here; e.g., peculiar data
+%	   structures.
 
 
-\chapter{Conclusions}
-
-What has been done with respect to what has been promised in Chapters~\ref{ch:intro}
-	   and \ref{ch:analysis}, and what is left out.
-
-\appendix
-
-\chapter{Appendix}
-
-In the Appendix you can put code snippets, snapshots, installation instructions,
-	   etc.
+%\chapter{Validation}
+%
+%Check if requirements from Chapter~\ref{ch:analysis} have been fulfilled.
+%Quantitative tests (simulations) and screenshots of the interfaces are put here.
 
 
-\chapter*{Evaluation}
-Your system will be judged mainly on how it operates as a distributed system. The
-	   primary evaluation will be according to whether your system has the following
-	   attributes:
-\begin{itemize}
-\item  It should be an interesting distributed system, making use of some of the
-	   algorithms we have covered in class for distributed synchronization, replication,
-	   fault tolerance and recovery, security, etc.
-\item The software should be well designed and well implemented, in terms of the
-	   overall architecture and the detailed realization.
-\item You should devise and apply systematic testing procedures, at both the unit
-	   and systems levels.
-\item The system should operate reliably and with good performance, even in the face
-	   of failures.
-\end{itemize}
-Important, but secondary considerations include:
-\begin{itemize}
-\item Time taken to do the project (the sooner the better, but do not miss details
-	   in order to end sooner)
-\item  How nice is the application's appearance: does it have a nice interface or
-	   a compelling visual display?
-\end{itemize}
+%\chapter{Conclusions}
+%
+%What has been done with respect to what has been promised in Chapters~\ref{ch:intro}
+%	   and \ref{ch:analysis}, and what is left out.
+
+%\appendix
+%
+%\chapter{Appendix}
+%
+%In the Appendix you can put code snippets, snapshots, installation instructions,
+%	   etc.
+
+
+%\chapter*{Evaluation}
+%Your system will be judged mainly on how it operates as a distributed system. The
+%	   primary evaluation will be according to whether your system has the following
+%	   attributes:
+%\begin{itemize}
+%\item  It should be an interesting distributed system, making use of some of the
+%	   algorithms we have covered in class for distributed synchronization, replication,
+%	   fault tolerance and recovery, security, etc.
+%\item The software should be well designed and well implemented, in terms of the
+%	   overall architecture and the detailed realization.
+%\item You should devise and apply systematic testing procedures, at both the unit
+%	   and systems levels.
+%\item The system should operate reliably and with good performance, even in the face
+%	   of failures.
+%\end{itemize}
+%Important, but secondary considerations include:
+%\begin{itemize}
+%\item Time taken to do the project (the sooner the better, but do not miss details
+%	   in order to end sooner)
+%\item  How nice is the application's appearance: does it have a nice interface or
+%	   a compelling visual display?
+%\end{itemize}
 
 \end{document}
