@@ -70,7 +70,7 @@ I nodi sono idempotenti in modo tale da avere un sistema fortemente decentralizz
 Le varie comunicazioni fra i nodi sono eseguite al di sopra di connessioni TCP, in
 	   tal modo possiamo garantire la consegna di ogni messaggio nell'ordine prestabilito.
 Per quanto concerne invece le comunicazioni riguardanti il sistema di $heartbeat$
-	   (TODO: link al capitolo), queste vengono eseguite utilizzando connessioni UDP.
+	   (\ref{heartbeat}), queste vengono eseguite utilizzando connessioni UDP.
 
 \section{Trasparenze}\label{Trasparenze}
 
@@ -236,8 +236,9 @@ Essendo tutti i nodi costruiti al medesimo modo, di seguito presentiamo la strut
 	   di uno singolo di essi. 
 
 \begin{figure}[h]
-\includegraphics[scale=0.6]{draw_nodeworker.pdf}
-\centering
+\makebox[\linewidth][c]{\includegraphics[scale=0.6]{draw_nodeworker.pdf}}
+%\includegraphics[scale=0.6]{draw_nodeworker.pdf}
+%\centering
 \caption{Struttura gerarchica dei moduli di un nodo e visualizzazione delle connessioni
 	   fra di essi.}
 \label{img:struttura_nodo}
@@ -280,7 +281,6 @@ Come si può vedere dalla figura \ref{img:struttura_nodo}, ogni nodo è formato 
 	\end{itemize}
 \end{itemize}
 
-% TODO: cambiare environment in ambiente nel disegno
 Come è stato accennato in precedenza verrà sviluppato un ulteriore modulo chiamato
 ``\textbf{\textit{Ambiente}}": questo modulo permette di simulare le interazioni
 	   che avverrebbero nel mondo reale. Nel dettaglio, le funzionalità del modulo
@@ -301,7 +301,21 @@ Dal punto di vista del nodo ci troviamo quindi costretti ad aggiungere un ulteri
 
 Di seguito verranno descriti nel dettaglio i vari protocolli ed algoritmi utilizzati.
 
-\subsection{Heartbeat}
+\subsection{Controllo e attivazione delle regole}
+
+Nel momento in cui il sistema riceve un'azione da eseguire (dopo aver controllato la validità e che appartenga ad una wave non ancora ricevuta) si innesca la seguente serie di azioni:
+\begin{enumerate}
+\item il modulo \textit{communication IN} invia l'azione da eseguire al modulo \textit{rules worker};
+\item quest'ultimo utilizza una funzione dello \textit{state server} per modificare lo stato del nodo in accordo all'azione ricevuta;
+\item il \textit{rules worker} esegue quindi un controllo sulle regole andando ad identificare quali possono essere attivate dalla modifica appena eseguita;
+\item per ciascuna regola che viene attivata viene testata la condizione e in caso di risultato positivo:
+\begin{itemize}
+\item se la regola è del tipo \textit{locale}, viene eseguita l'azione associata
+\item se invece la regola è del tipo \textit{globale}, viene eseguita l'azione associata (in caso di guardia con valutazione positiva) e viene passata ad un processo di \textit{communication OUT}, istanziato appositamente, che genera una nuova wave di messaggi inviando ai vicini la nuova azione.
+\end{itemize}
+\end{enumerate}
+
+\subsection{Heartbeat}\label{heartbeat}
 L'algoritmo di ``heartbeat'' serve per mantenere consistente lo stato dei vicini
 	   di un nodo. Questo infatti controlla la loro vitalità e sarà componente chiave
 	   per l'aggiunta di un nuovo nodo.
@@ -313,13 +327,21 @@ L'algoritmo si suddivide quindi in due componenti:
 	   istanzia una richiesta di ``\textit{ECHO}" richeverà un pacchetto di ``\textit{ECHO\_RPL}".
 	   Definiamo come $\tau$ il tempo che intercorre tra un messaggio di \textit{ECHO} ed
 	   un'altro. Se un nodo non rispondesse entro $2\tau$ ad una \textit{ECHO\_RQS}, questo
-	   verrà considerato come non più collegato. Ogni\textit{ECHO\_RPL} conterrà il ``Lamport"
+	   verrà considerato come non più collegato. Ogni \textit{ECHO\_RPL} conterrà il ``Lamport"
 	   attuale del vicino.
 	\item \textit{ADD\_NEW\_ND}: similmente al protocollo DHCP, nella fase di aggiunta
 	   di un nodo alla rete, il nuovo nodo si annuncia al suo vicino ``fisico'', chiedendo
 	   le informazioni essenziali per poter partecipare attivamente alla rete. Questo sarà
 	   spiegato più in dettaglio nella prossima sezione.
 \end{itemize}
+
+\begin{figure}[h]
+\centering
+\includegraphics{HeartbeatDiagram.pdf}
+\caption{Sequence diagram dei messagi usati per il sistema di \textit{heartbeat}.}
+\label{img:heartbeat}
+\end{figure}
+
 \subsection{Aggiunta di un nuovo nodo}
 L'aggiunta di un nodo è una parte complicata del sistema: bisogna tener conto della
 	   possibilità che la rete si partizioni. Questo si può verificare nel caso in cui
@@ -336,14 +358,19 @@ L'aggiunta di un nuovo nodo si compone dei seguenti passi:
 A questo punto, una volta che per ogni vicino ho i suoi parametri di lamport, i casi
 	   possibili sono 2:
 \begin{enumerate}
-	\item \textbf{tutti i nodi hanno medesimo lamport:} setto il mio lamport al lamport
+	\item \textbf{tutti i nodi hanno medesimo lamport:} imposto il mio lamport al lamport
 	   comune;
-	\item \textbf{esiste un lamport massimo:} setto il mio lamport al valore massimo,
+	\item \textbf{esiste un lamport massimo:} imposto il mio lamport al valore massimo,
 	   e rispondo con \textit{UPD\_LMP} a tutti i miei vicini che non hanno il lamport al
 	   massimo. Questi a loro volta manderanno a tutti i loro vicini, con lamport diverso
 	   da quello scelto, il nuovo valore.
 \end{enumerate}
-L'esecuzione dei messaggi sarà affrontata separatamente.
+
+\begin{figure}[h]
+\makebox[\linewidth][c]{\includegraphics[scale=0.9]{NewNodeDiagram.pdf}}
+\caption{Sequence diagram dei messagi usati per laggiunta di un nuovo nodo alla rete.}
+\label{img:newnode}
+\end{figure}
 
 \subsection{Algoritmo: Flooding}
 Ogni qual volta si crea una regola che genera un evento "globale", ogni nodo spedirà
@@ -358,6 +385,12 @@ Ogni qual volta si crea una regola che genera un evento "globale", ogni nodo spe
 	   l'ha ricevuto. Queste strategie applicate faranno si che i messaggi circolanti nella
 	   rete siano il minor numero possibile, e nell'eventuale creazioni di cicli nella rete,
 	   dovuta alla topologia della stessa, siano soppressi alla prima occasione utile.
+
+\begin{figure}[h]
+\makebox[\linewidth][c]{\includegraphics[scale=0.8]{FloodDiagram.pdf}}
+\caption{Sequence diagram dei messaggi usati per l'algoritmo di flooding.}
+\label{img:flooding}
+\end{figure}
 
 \subsection{Algoritmo: Lamport modificato}
 Il ``Clock di Lamport" ci permette di dare una certa conseguenza temporale alle azioni.
