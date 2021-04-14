@@ -7,6 +7,17 @@
 *.bbl
 *.blg
 
+# file binari di erlang
+*.beam
+
 ## IGOR LOCAL
 
 ## DIEGO LOCAL
+
+# IntelliJIDEA
+
+# cartella 
+.idea
+
+# files
+*.iml
