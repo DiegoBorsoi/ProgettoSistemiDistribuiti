@@ -28,18 +28,21 @@ init(State_table) ->
 
 %%% Funzioni usate dai client %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+exec_action(Name, Action=[X|_]) ->
+  gen_server:call(Name, X, infinity);
 exec_action(Name, Action) ->
   gen_server:call(Name, Action, infinity).
 
 %%% Funzioni chiamate da gen_server %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-handle_call(Action, From, State) ->
-  io:format("Ricevuta call con azione: ~p~n", [Action]),
+handle_call(Action={X,_}, From, State) ->
+  io:format("Ricevuta call con azione: ~p~n", [X]),
   io:format("Stato: ~p~n", [State]),
   % TODO: modifica lo stato in base all'azione ricevuta
   {reply, done, State};
 handle_call(_Msg, _From, State) ->  % per gestire messaggi syncroni sconosciuti
-  {noreply, State}.
+  io:format("Non sto 'mbriacato~n"),
+  {reply, done, State}.
 
 handle_cast(_Msg, State) ->  % per gestire messaggi asyncroni sconosciuti
   {noreply, State}.
