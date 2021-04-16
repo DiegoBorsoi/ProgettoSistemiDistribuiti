@@ -11,14 +11,14 @@
 %%% API functions
 %%%===================================================================
 
-start_link(Name, Server_name) ->
-  supervisor:start_link(?MODULE, [Name, Server_name]).
+start_link(Server_name, Rules_worker_name) ->
+  supervisor:start_link(?MODULE, [Server_name, Rules_worker_name]).
 
 %%%===================================================================
 %%% Supervisor callbacks
 %%%===================================================================
 
-init([Name, Server_name]) ->
+init([Server_name, Rules_worker_name]) ->
   MaxRestart = 1,
   MaxRestartPeriod = 5,
   SupFlags = #{strategy => one_for_one, intensity => MaxRestart, period => MaxRestartPeriod},
