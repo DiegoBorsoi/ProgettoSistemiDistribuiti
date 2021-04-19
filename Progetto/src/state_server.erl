@@ -13,6 +13,8 @@
 -record(server_state, {
                         vars_table,
                         rules_table,
+                        neighb_table,
+                        node_params_table,
                         worker_sup
                       }).
 
@@ -41,9 +43,9 @@ exec_action(Name, Action) ->
 
 init(State_tables) ->
   process_flag(trap_exit, true),  % per effettuare la pulizia prima della terminazione (viene chiamata terminate/2)
-  {Vars, Rules} = State_tables,
+  {Vars, Rules, Neighb, NodeParams} = State_tables,
   % TODO: aggiungere avviamento del worker supervisor
-  {ok, #server_state{vars_table = Vars, rules_table = Rules}}.
+  {ok, #server_state{vars_table = Vars, rules_table = Rules, neighb_table = Neighb, node_params_table = NodeParams}}.
 
 handle_call(Action={X,_}, From, State) ->
   io:format("Ricevuta call con azione: ~p~n", [X]),

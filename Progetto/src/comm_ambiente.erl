@@ -31,7 +31,7 @@ start_link(Name, Server_name, Rules_worker_name) ->
 %%%===================================================================
 
 init([Name, Server_name, Rules_worker_name]) ->
-  ambiente ! {nodo_avviato, Name},
+  ambiente ! {nodo_avviato, Name},  % IMPORTANTE: l'ambiente deve essere registrato sotto il nome "ambiente"
   {ok, #comm_ambiente_state{name = Name, server_name = Server_name, rules_worker_name = Rules_worker_name}}.
 
 handle_call(_Request, _From, State = #comm_ambiente_state{}) ->
