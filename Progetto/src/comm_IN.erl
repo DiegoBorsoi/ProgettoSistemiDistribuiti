@@ -13,7 +13,7 @@ start_link(Id, State_server, Rules_worker) ->
 init(Id, State_server, Rules_worker) ->
   register(Id, self()),
   FloodTable = ets:new(flood_table , [
-    set,
+    bag,
     public,
     {keypos,1},
     {heir,none},
@@ -25,9 +25,24 @@ init(Id, State_server, Rules_worker) ->
 
 listen(State) ->
   receive
-    {msg, Val} ->
-      io:format("Received: ~p.~n", [Val]),
+    {flood, Flood_clock, Flood_gen, Action} ->
+      io:format("Received: ~p.~n", [Action]),
+      case check_flood_validity(Flood_clock, Flood_gen, State) of
+        true -> % flood nuovo
+          ok; % TODO: inviare il messaggio a tutti i vicini
+        false ->
+          ok
+      end,
       listen(State);
     _ ->
       io:format("Unespected message.~n")
+  end.
+
+% controllo se il flood arrivato è già stato visto (false) oppure no (true) e lo salvo nella tabella
+check_flood_validity(Flood_clock, Flood_gen, _State = #comm_IN_state{flood_table = FT}) ->
+  case ets:insert_new(FT, {Flood_clock, Flood_gen}) of
+    false -> % TODO: questa cosa è molto inutile, basta solo chiamare l'insert
+      false;
+    true ->
+      true
   end.
