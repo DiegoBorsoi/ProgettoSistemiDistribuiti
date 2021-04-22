@@ -1,0 +1,21 @@
+% file esempio da usare con file:consult/1
+
+{
+    [
+	{sensore, [x1,x2,x3,x4]},
+	{caldaia, [y1,y2,y3]}
+    ]
+    ,
+    [
+	{sensore, 
+	    [
+		{local, [x1,x2,x10], {lt, [x1, 10]}, [{x3, 7}, {x30, 2}]},
+		{local, [x1,x2,x10], {lt, [x1, 10]}, [{x3, 7}, {x30, 2}]},
+		{local, [x1,x2,x10], {lt, [x1, 10]}, [{x3, 7}, {x30, 2}]},
+		{local, [x1,x2,x10], {lt, [x1, 10]}, [{x3, 7}, {x30, 2}]}
+	    ]
+	}
+    ]
+}.
+
+

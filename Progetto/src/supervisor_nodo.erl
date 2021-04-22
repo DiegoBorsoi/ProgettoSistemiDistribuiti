@@ -54,6 +54,7 @@ init({Id}) ->
 
 create_table() ->
   % tabella per il salvataggio delle variabili di stato
+  % {name, Value}
   Vars = ets:new(tabella_vars , [
     set,
     public,
@@ -63,7 +64,7 @@ create_table() ->
     {read_concurrency,false},
     {decentralized_counters,false}
   ]),
-  % tabella contenente le regole
+  % tabella contenente le regole nella forma: (guardare il file rules_expl)
   Rules = ets:new(tabella_rules , [
     set,
     public,
@@ -74,6 +75,12 @@ create_table() ->
     {decentralized_counters,false}
   ]),
   % tabella contenente i dati riguardanti i vicini
+  % per ogni vicino abbiamo:
+  % { ID_nodo, HB_nodo, Stato}
+  % dove la variabile Stato può assumere i valori:
+  % - disable
+  % - active
+  % - route_port
   Neighb = ets:new(tabella_vicini , [
     set,
     public,
@@ -94,4 +101,11 @@ create_table() ->
     {decentralized_counters,false}
   ]),
   % TODO: leggere da file per aggiungere lo stato iniziale e le regole
+  File = file:consult("initial_structure.txt"),
+  case File of
+    {ok, FileRules} ->
+      ets:insert(Rules, FileRules);
+    _ ->
+      io:format("Errore nella lettura del file contenente le regole.")
+  end,
   {Vars, Rules, Neighb, NodeParams}.

@@ -59,14 +59,14 @@ handle_call(Action={X,_}, _From, State) ->
   % TODO: modifica lo stato in base all'azione ricevuta
   {reply, done, State};
 handle_call({get_neighb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini salvata nella tabella neighb_table dello stato
-  Neighb_list = [Node_HB_name || {_Node_ID, Node_HB_name} <- ets:tab2list(NT)],
+  Neighb_list = [Node_HB_name || {_Node_ID, Node_HB_name, _State} <- ets:tab2list(NT)],
   {reply, {ok, Neighb_list}, State};
 handle_call(_Msg, _From, State) ->  % per gestire messaggi syncroni sconosciuti
   io:format("Non sto 'mbriacato~n"),
   {reply, done, State}.
 
 handle_cast({add_neighb, {Node_ID, Node_HB_name}}, State = #server_state{neighb_table = NT}) ->  % Aggiunge un nodo vicino alla lista salvata nella tabella
-  ets:insert(NT, {Node_ID, Node_HB_name}),
+  ets:insert(NT, {Node_ID, Node_HB_name, deactivated}),
   {noreply, State};
 handle_cast(_Msg, State) ->  % per gestire messaggi asyncroni sconosciuti
   {noreply, State}.
