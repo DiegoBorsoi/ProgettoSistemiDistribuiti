@@ -1,52 +1,52 @@
-File di esempio e spiegazione regole
-
-REGOLA LOCALE
-{
-    TIPO:
-        local: regola che fa qualcosa solo nel nodo
-    ,
-    TRIGGER: eventi che servono per attivare la regola
-    [
-        var1, var2, var3,...
-    ]
-    ,
-    CONDIZIONI:
-    {
-        op      : operazione della condizione (lt, lte, gt, gte, eq, neq)
-        [vars]  : variabili di stato coinvolte
-        OR
-        [{COND}]: **forse lo implementiamo**
-    },
-    AZIONE:
-    [ {var,val} ] : che variabile deve essere settata a cosa
-}
-
-REGOLA GLOBALE/TRANSAZIONE
-{
-    TIPO:
-        global:      regola che si propaga nella rete
-        transaction: regola che chiede di eseguire qualcosa assieme
-    ,
-    TRIGGER: eventi che servono per attivare la regola
-    [
-        var1, var2, var3,...
-    ]
-    ,
-    CONDIZIONI:
-    {
-        op      : operazione della condizione (lt, lte, gt, gte, eq, neq)
-        [vars]  : variabili di stato coinvolte
-        OR
-        [{COND}]: **forse lo implementiamo**
-    },
-    AZIONE:
-    {
-        { GUARDIE }: condizioni di guardia per l'esecuzione delle azioni descritte successivamente
-        [ {var,val} ] : che variabile deve essere settata a cosa
-
-        GUARDIE: come condizioni, ma le operazioni sono (lt, lte, gt, gte, eq, neq, itp, ntp)
-    }
-}
+%File di esempio e spiegazione regole
+%
+%REGOLA LOCALE
+%{
+%    TIPO:
+%        local: regola che fa qualcosa solo nel nodo
+%    ,
+%    TRIGGER: eventi che servono per attivare la regola
+%    [
+%        var1, var2, var3,...
+%    ]
+%    ,
+%    CONDIZIONI:
+%    {
+%        op      : operazione della condizione (lt, lte, gt, gte, eq, neq)
+%        [vars]  : variabili di stato coinvolte
+%        OR
+%        [{COND}]: **forse lo implementiamo**
+%    },
+%    AZIONE:
+%    [ {var,val} ] : che variabile deve essere settata a cosa
+%}
+%
+%REGOLA GLOBALE/TRANSAZIONE
+%{
+%    TIPO:
+%        global:      regola che si propaga nella rete
+%        transaction: regola che chiede di eseguire qualcosa assieme
+%    ,
+%    TRIGGER: eventi che servono per attivare la regola
+%    [
+%        var1, var2, var3,...
+%    ]
+%    ,
+%    CONDIZIONI:
+%    {
+%        op      : operazione della condizione (lt, lte, gt, gte, eq, neq)
+%        [vars]  : variabili di stato coinvolte
+%        OR
+%        [{COND}]: **forse lo implementiamo**
+%    },
+%    AZIONE:
+%    {
+%        { GUARDIE }: condizioni di guardia per l'esecuzione delle azioni descritte successivamente
+%        [ {var,val} ] : che variabile deve essere settata a cosa
+%
+%        GUARDIE: come condizioni, ma le operazioni sono (lt, lte, gt, gte, eq, neq, itp, ntp)
+%    }
+%}
 
 {
     local,
