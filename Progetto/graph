@@ -1,0 +1,50 @@
+%esempio di grafo dei nodi
+[finestra,termostato].
+[
+    {
+        a,
+        termostato,
+        [
+            b,
+            c,
+            d
+        ]
+    },
+    {
+        b,
+        termostato,
+        [
+            a,
+            c,
+            d
+        ]
+    },
+    {
+        c,
+        finestra,
+        [
+            a,
+            b,
+            d
+        ]
+    },
+    {
+        d,
+        finestra,
+        [
+            a,
+            b,
+            c
+        ]
+    },
+    {
+        errore,
+        finestra,
+        [
+            a,
+            b,
+            c,
+            errore
+        ]
+    }
+].
