@@ -90,7 +90,7 @@ create_table() ->
     {read_concurrency,false},
     {decentralized_counters,false}
   ]),
-  % tabella per i parametri del nodo (Id del nodo, Lamport, tipo del nodo, ecc)
+  % tabella per i parametri del nodo (Id del nodo, clock, tipo del nodo, ecc)
   NodeParams = ets:new(tabella_parametri , [
     set,
     public,
