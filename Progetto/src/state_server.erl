@@ -8,7 +8,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% client functions
--export([exec_action/2, get_neighb/1, add_neighb/2, rm_neighb/2, update_clock/2, get_clock/1]).
+-export([exec_action/2, get_neighb/1, add_neighb/2, rm_neighb/2, update_clock/2, get_clock/1, get_rules/1]).
 
 -record(server_state, {
   vars_table,
@@ -40,6 +40,11 @@ exec_action(Name, Action) ->
 get_neighb(Name) ->
   gen_server:call(Name, {get_neighb}).
 
+% Esegue una chiamata sincrona per ricevere la lista delle regole
+get_rules(Name) ->
+  gen_server:call(Name, {get_rules}).
+
+% Esegue una chiamata sincrona per ricevere il clock locale
 get_clock(Name) ->
   gen_server:call(Name, {get_clock}).
 
@@ -75,6 +80,8 @@ handle_call({get_neighb}, _From, State = #server_state{neighb_table = NT}) ->  %
 handle_call({get_clock}, _From, State = #server_state{node_params_table = NpT}) ->
   [[Clock]] = ets:match(NpT, {clock, '$1'}),
   {reply, {ok, Clock}, State};
+handle_call({get_rules}, _From, State = #server_state{rules_table = NrT}) ->
+  {reply,{ok,ets:tab2list(NrT)},State};
 handle_call({rm_neighb, Neighb}, _From, State = #server_state{neighb_table = NT}) ->
   ets:delete(NT, Neighb),
   {reply, ok, State};

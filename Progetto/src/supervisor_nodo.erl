@@ -102,11 +102,15 @@ create_table(Tipo) ->
   ]),
   ets:insert(NodeParams, [{clock, -1}, {tipo, Tipo}]),
   % TODO: leggere da file per aggiungere lo stato iniziale e le regole
-%%  File = file:consult("initial_structure.txt"),
-%%  case File of
-%%    {ok, FileRules} ->
-%%      ets:insert(Rules, FileRules);
-%%    _ ->
-%%      io:format("Errore nella lettura del file contenente le regole.")
-%%  end,
+  {ok, File} = file:consult(list_to_atom(atom_to_list(Tipo) ++ "_rules.txt")),
+  io:format("File: ~p\n",[File]),
+  case File of
+    [Vrs | Rls] ->
+      lists:foreach(
+        fun (X) -> ets:insert(NodeParams,X) end,
+        Vrs),
+      ets:insert(Rules,Rls);
+    _ ->
+      io:format("Errore nella lettura del file contenente le regole.")
+  end,
   {Vars, Rules, Neighb, NodeParams}.

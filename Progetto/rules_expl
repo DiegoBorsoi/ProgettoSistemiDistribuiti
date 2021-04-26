@@ -1,5 +1,11 @@
 %File di esempio e spiegazione regole
 %
+%Variabili:
+%[
+%   {var,val}: variabile, valore iniziale
+%   [...]
+%}
+%
 %REGOLA LOCALE
 %{
 %    TIPO:
@@ -48,6 +54,20 @@
 %    }
 %}
 
+[
+    {x1,0},
+    {x2,0},
+    {x3,0},
+    {x4,0},
+    {x5,0},
+    {x6,0},
+    {x7,0},
+    {x8,0},
+    {x9,0},
+    {x10,0}
+].
+
+
 {
     local,
     [x1,x2,x10],
@@ -57,7 +77,6 @@
         {x30,5}
     ]
 }.
-
 {
     global,
     [x1,x2,x10],
