@@ -9,8 +9,7 @@
                     hb_name,
                     server_name,
                     neighb_clocks,
-                    neighb_state,
-                    timer_counter
+                    neighb_state
                   }).
 
 start_link(Id, Server_name, HB_name) ->
@@ -33,7 +32,7 @@ init(Id, Server_name, HB_name) ->
   end,
   Neighbs_state = maps:from_list([{Key, alive} || Key <- maps:keys(Neighbs_clocks)]),
   self() ! {start_echo},
-  listen(State#hb_state{neighb_clocks = Neighbs_clocks, neighb_state = Neighbs_state, timer_counter = 0}).
+  listen(State#hb_state{neighb_clocks = Neighbs_clocks, neighb_state = Neighbs_state}).
 
 % esecuzione del protocollo di annessione di un nuovo nodo alla rete
 enter_network(Neighbs, _State = #hb_state{id = Id, server_name = Server_name}) ->
@@ -69,7 +68,7 @@ check_clock_values(Neighbs_clocks, Id, Server_name) ->
   [Node ! {upd_lmp, Clock, Id} || Node <- maps:keys(maps:filter(fun(_Key, Value) -> Value < Clock end, Neighbs_clocks))],
   ok.
 
-listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, neighb_state = NS}) ->
+listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, neighb_clocks = NC, neighb_state = NS}) ->
   receive
     {start_echo} ->
       io:format("Inizio procedura echo.~n"),
@@ -77,20 +76,30 @@ listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, 
       % viene create il processo hb_OUT che si occupa di inviare il messaggio di echo_rqs a tutti i vicini
       spawn(hb_OUT, init, [Id, Server_name, HB_name]),
       listen(State#hb_state{neighb_state = New_NS});
+    {echo_timer_ended} ->
+      io:format("Timer dell'ECHO finito.~n"),
+      Updated_NS = update_neighbs_state(NS),  % aggiorna lo stato dei vicini in modo da scoprire se qualcuno non ha risposto
+      Neighbs_dead = maps:keys(maps:filter(fun(_Key, Value) -> Value == dead end, Updated_NS)), % lista dei vicini morti
+      [state_server:rm_neighb(Server_name, Node) || Node <- Neighbs_dead],  % elimino i morti dalla tabella nello state_server
+      Maybe_alive_NS = removes_dead(Updated_NS, Neighbs_dead),  % elimino i morti dalla mappa dello stato dei vicini
+
+      self() ! {start_echo},  % iniziamo un nuovo ciclo di ECHO
+      listen(State#hb_state{neighb_state = Maybe_alive_NS});
+    {echo_rpl, Id, Clock} ->
+      io:format("Ricevuta risposta dell'echo_rqs da ~p.~n", [Id]),
+      New_NC = maps:put(Id, Clock, NC), % aggiorno il clock salvato del vicino
+      New_NS = maps:put(Id, alive, NS), % aggiorno lo stato del vicino ad alive avendo ricevuto una risposta all'ECHO
+      listen(State#hb_state{neighb_clocks = New_NC, neighb_state = New_NS});
+    {echo_rqs, Id_sender} ->
+      io:format("HeartBeat ricevuto da ~p.~n", [Id]),
+      {ok, Clock} = state_server:get_clock(Server_name),
+      Id_sender ! {echo_rpl, Id, Clock},
+      listen(State);
     {add_new_nd, Id} ->
       io:format("Ricevuta richiesta connessione alla rete di ~p.~n", [Id]),
       listen(State);
     {upd_lmp, Id, Clock} ->
       io:format("Ricevuto ordine di aggiornamento del clock.~n"),
-      listen(State);
-    {echo_rqs, Id} ->
-      io:format("HeartBeat ricevuto da ~p.~n", [Id]),
-      listen(State);
-    {echo_rpl, Id, Clock} ->
-      io:format("Ricevuta risposta dell'echo_rqs da ~p.~n", [Id]),
-      listen(State);
-    {echo_timer_ended, Neighbour} ->
-      io:format("Timer di risposta del vicino ~p finito.~n", [Neighbour]),
       listen(State);
     {add_timer_ended} ->  % timer della connessione, tutto è andato bene, quindi viene ignorato
       listen(State);
@@ -110,6 +119,7 @@ get_max_map_value(Key, Value, _Acc = {_Max_Key, Max_Value}) when Value > Max_Val
 get_max_map_value(_Key, _Value, Acc) ->
   Acc.
 
+
 set_neighbs_state(Neighbs_state) ->
   maps:fold(fun set_neighbs_state_aux/3, maps:new(), Neighbs_state).
 
@@ -117,3 +127,20 @@ set_neighbs_state_aux(Key, alive, Acc) ->
   maps:put(Key, unknown, Acc);
 set_neighbs_state_aux(Key, Value, Acc) -> % Value in questo caso può valere solamente maybe_dead
   maps:put(Key, Value, Acc).
+
+
+update_neighbs_state(Neighbs_state) ->
+  maps:fold(fun update_neighbs_state_aux/3, maps:new(), Neighbs_state).
+
+update_neighbs_state_aux(Key, unknown, Acc) ->
+  maps:put(Key, maybe_dead, Acc);
+update_neighbs_state_aux(Key, maybe_dead, Acc) ->
+  maps:put(Key, dead, Acc);
+update_neighbs_state_aux(Key, Value, Acc) -> % Value in questo caso può valere solamente alive
+  maps:put(Key, Value, Acc).
+
+
+removes_dead(Updated_NS, _Neighbs_dead = [First_neighb | Tail]) ->
+  removes_dead(maps:remove(First_neighb, Updated_NS), Tail);
+removes_dead(Updated_NS, _) ->
+  Updated_NS.
