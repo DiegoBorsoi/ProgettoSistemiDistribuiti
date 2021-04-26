@@ -21,20 +21,22 @@ init(Id, Server_name, HB_name) ->
   register(HB_name, self()),
   State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name},
   {ok, Clock} = state_server:get_clock(Server_name),
-  Neighbs = state_server:get_neighb(Server_name),
-  if
-    Clock == -1 and Neighbs /= [] ->
-      Neighbs_clocks = enter_network(State);
-    true ->
-      Neighbs_clocks = [{Node, -1} || Node <- Neighbs]
+  {ok, Neighbs} = state_server:get_neighb(Server_name),
+  case {Clock, Neighbs} of
+    {-1, []} -> % siamo gli unici nella rete
+      state_server:update_clock(Server_name, 0),
+      Neighbs_clocks = maps:new();
+    {-1, _} ->
+      Neighbs_clocks = enter_network(Neighbs, State);
+    _ ->
+      Neighbs_clocks = maps:from_list([{Node, -1} || Node <- Neighbs])
   end,
   Neighbs_state = maps:from_list([{Key, alive} || Key <- maps:keys(Neighbs_clocks)]),
   self() ! {start_echo},
   listen(State#hb_state{neighb_clocks = Neighbs_clocks, neighb_state = Neighbs_state, timer_counter = 0}).
 
 % esecuzione del protocollo di annessione di un nuovo nodo alla rete
-enter_network(_State = #hb_state{id = Id, server_name = Server_name}) ->
-  {ok, Neighbs} = state_server:get_neighb(Server_name),
+enter_network(Neighbs, _State = #hb_state{id = Id, server_name = Server_name}) ->
   [Node ! {add_new_nd, Id} || Node <- Neighbs], % invia un messaggio ad ogni vicino raggiungibile
   Neighbs_clocks = maps:from_list([{Node, -1} || Node <- Neighbs]),  % crea una mappa per il salvataggio del clock dei vicini
   % dopo 10 secondi un messaggio viene inviato, serve per mettere un tempo massimo nell'attesa dei messaggi di risposta nella connessione alla rete

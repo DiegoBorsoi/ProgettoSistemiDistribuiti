@@ -73,7 +73,7 @@ handle_call({get_neighb}, _From, State = #server_state{neighb_table = NT}) ->  %
   Neighb_list = [Node_HB_name || {_Node_ID, Node_HB_name, _State} <- ets:tab2list(NT)],
   {reply, {ok, Neighb_list}, State};
 handle_call({get_clock}, _From, State = #server_state{node_params_table = NpT}) ->
-  [Clock] = ets:match(NpT, {clock, $1}),
+  [[Clock]] = ets:match(NpT, {clock, '$1'}),
   {reply, {ok, Clock}, State};
 handle_call({rm_neighb, Neighb}, _From, State = #server_state{neighb_table = NT}) ->
   ets:delete(NT, Neighb),
