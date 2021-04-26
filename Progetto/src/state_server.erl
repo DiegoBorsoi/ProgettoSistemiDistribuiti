@@ -11,11 +11,11 @@
 -export([exec_action/2, get_neighb/1, add_neighb/2, rm_neighb/2, update_clock/2]).
 
 -record(server_state, {
-                        vars_table,
-                        rules_table,
-                        neighb_table,
-                        node_params_table
-                      }).
+  vars_table,
+  rules_table,
+  neighb_table,
+  node_params_table
+}).
 
 %%%===================================================================
 %%% API
@@ -30,7 +30,7 @@ start_link(Name, _State_table) ->
 %%% Funzioni usate dai client
 %%%===================================================================
 
-exec_action(Name, [X|_]) ->
+exec_action(Name, [X | _]) ->
   io:format("Ricevuta lista.~n"),
   gen_server:call(Name, {exec_action, X}, infinity);
 exec_action(Name, Action) ->
@@ -39,6 +39,9 @@ exec_action(Name, Action) ->
 % Esegue una chiamata sincrona per ricevere la lista di vicini
 get_neighb(Name) ->
   gen_server:call(Name, {get_neighb}).
+
+get_clock(Name) ->
+  gen_server:call(Name, {get_clock}).
 
 % Esegue una chiamata asincrona per l'aggiunta di un vicino alla tabella corrispondente
 add_neighb(Name, Node = {_Node_ID, _Node_HB_name}) ->
@@ -61,7 +64,7 @@ init(State_tables) ->
   {Vars, Rules, Neighb, NodeParams} = State_tables,
   {ok, #server_state{vars_table = Vars, rules_table = Rules, neighb_table = Neighb, node_params_table = NodeParams}}.
 
-handle_call({exec_action, X,_}, _From, State) ->
+handle_call({exec_action, X, _}, _From, State) ->
   io:format("Ricevuta call con azione: ~p~n", [X]),
   io:format("Stato: ~p~n", [State]),
   % TODO: modifica lo stato in base all'azione ricevuta
@@ -69,6 +72,9 @@ handle_call({exec_action, X,_}, _From, State) ->
 handle_call({get_neighb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini salvata nella tabella neighb_table dello stato
   Neighb_list = [Node_HB_name || {_Node_ID, Node_HB_name, _State} <- ets:tab2list(NT)],
   {reply, {ok, Neighb_list}, State};
+handle_call({get_clock}, _From, State = #server_state{node_params_table = NpT}) ->
+  [Clock] = ets:match(NpT, {clock, $1}),
+  {reply, {ok, Clock}, State};
 handle_call({rm_neighb, Neighb}, _From, State = #server_state{neighb_table = NT}) ->
   ets:delete(NT, Neighb),
   {reply, ok, State};
