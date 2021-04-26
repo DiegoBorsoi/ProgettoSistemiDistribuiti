@@ -20,7 +20,14 @@ start_link(Id, Server_name, HB_name) ->
 init(Id, Server_name, HB_name) ->
   register(HB_name, self()),
   State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name},
-  Neighbs_clocks = enter_network(State),
+  {ok, Clock} = state_server:get_clock(Server_name),
+  Neighbs = state_server:get_neighb(Server_name),
+  if
+    Clock == -1 and Neighbs /= [] ->
+      Neighbs_clocks = enter_network(State);
+    true ->
+      Neighbs_clocks = [{Node, -1} || Node <- Neighbs]
+  end,
   Neighbs_state = maps:from_list([{Key, alive} || Key <- maps:keys(Neighbs_clocks)]),
   self() ! {start_echo},
   listen(State#hb_state{neighb_clocks = Neighbs_clocks, neighb_state = Neighbs_state, timer_counter = 0}).
@@ -50,9 +57,7 @@ wait_for_all_neighbs(Neighbs_clocks, Server_name) ->
       end;
     {add_timer_ended} -> % il tempo massimo è scaduto, i nodi che non hanno risposto sono considerati morti
       [state_server:rm_neighb(Server_name, Node) || Node <- maps:keys(maps:filter(fun(_Key, Value) -> Value == -1 end, Neighbs_clocks))],
-      maps:filter(fun(_Key, Value) -> Value =/= -1 end, Neighbs_clocks);
-    Msg ->
-      io:format("Ricevuto messaggio inaspettato durante la connessione ai vicini: ~p.~n", [Msg])
+      maps:filter(fun(_Key, Value) -> Value =/= -1 end, Neighbs_clocks)
   end.
 
 % Funzione per estrarre il massimo dei clock dei vicini ed inviare un apposito messaggio a quelli con clock minore
@@ -87,8 +92,9 @@ listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, 
       listen(State);
     {add_timer_ended} ->  % timer della connessione, tutto è andato bene, quindi viene ignorato
       listen(State);
-    _ ->
-      io:format("Unespected message.~n")
+    Msg ->
+      io:format("Unespected message on HeartBeat: ~p.~n", [Msg]),
+      listen(State)
   end.
 
 %%%===================================================================
