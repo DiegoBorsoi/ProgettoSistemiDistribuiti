@@ -8,7 +8,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% client functions
--export([exec_action/2, get_neighb/1, add_neighb/2, rm_neighb/2, update_clock/2]).
+-export([exec_action/2, get_neighb/1, add_neighb/2, rm_neighb/2, update_clock/2, get_clock/1]).
 
 -record(server_state, {
   vars_table,
