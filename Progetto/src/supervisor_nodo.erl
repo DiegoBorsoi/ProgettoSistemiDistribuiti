@@ -40,7 +40,7 @@ init({Id, Tipo}) ->
       type => supervisor,
       modules => [supervisor_workers]},
     #{id => comm_ambiente,
-      start => {comm_ambiente, start_link, [Comm_ambiente_name, Server_name, Rules_worker_name, HB_name]},
+      start => {comm_ambiente, start_link, [Comm_ambiente_name, Server_name, Rules_worker_name, HB_name, Id]},
       restart => permanent,
       shutdown => infinity,
       type => worker,

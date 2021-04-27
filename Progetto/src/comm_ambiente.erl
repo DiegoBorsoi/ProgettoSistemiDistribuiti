@@ -2,7 +2,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/4]).
+-export([start_link/5]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -21,8 +21,8 @@
 %%% API
 %%%===================================================================
 
-start_link(Name, Server_name, Rules_worker_name, HB_name) ->
-  gen_server:start_link({local, Name}, ?MODULE, [Name, Server_name, Rules_worker_name, HB_name], []).
+start_link(Name, Server_name, Rules_worker_name, HB_name, Id) ->
+  gen_server:start_link({local, Name}, ?MODULE, [Name, Server_name, Rules_worker_name, HB_name, Id], []).
 
 %%%===================================================================
 %%% Funzioni usate dai client
@@ -35,8 +35,8 @@ add_neighb(Name, {Node_ID, Node_HB_name}) ->
 %%% gen_server callbacks
 %%%===================================================================
 
-init([Name, Server_name, Rules_worker_name, HB_name]) ->
-  ambiente ! {nodo_avviato, Name},  % IMPORTANTE: l'ambiente deve essere registrato sotto il nome "ambiente"
+init([Name, Server_name, Rules_worker_name, HB_name, Id]) ->
+  ambiente ! {nodo_avviato, Name, {Id, HB_name}},  % IMPORTANTE: l'ambiente deve essere registrato sotto il nome "ambiente"
   self() ! {start_discovery},
   {ok, #comm_ambiente_state{name = Name, server_name = Server_name, rules_worker_name = Rules_worker_name, hb_name = HB_name}}.
 
