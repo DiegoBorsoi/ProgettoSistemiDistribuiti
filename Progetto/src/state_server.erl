@@ -8,7 +8,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% client functions
--export([exec_action/2, get_neighb/1, add_neighb/2, rm_neighb/2, update_clock/2, get_clock/1, get_rules/1]).
+-export([exec_action/2, get_neighb/1, add_neighb/2, rm_neighb/2, update_clock/2, get_clock/1, get_rules/1, get_neighb_hb/1, rm_neighb_with_hb/2, add_neighbs/2]).
 
 -record(server_state, {
   vars_table,
@@ -40,6 +40,10 @@ exec_action(Name, Action) ->
 get_neighb(Name) ->
   gen_server:call(Name, {get_neighb}).
 
+% Esegue una chiamata sincrona per ricevere la lista di vicini
+get_neighb_hb(Name) ->
+  gen_server:call(Name, {get_neighb_hb}).
+
 % Esegue una chiamata sincrona per ricevere la lista delle regole
 get_rules(Name) ->
   gen_server:call(Name, {get_rules}).
@@ -48,13 +52,21 @@ get_rules(Name) ->
 get_clock(Name) ->
   gen_server:call(Name, {get_clock}).
 
-% Esegue una chiamata asincrona per l'aggiunta di un vicino alla tabella corrispondente
+% Esegue una chiamata sincrona per l'aggiunta di un vicino alla tabella corrispondente
 add_neighb(Name, Node = {_Node_ID, _Node_HB_name}) ->
-  gen_server:cast(Name, {add_neighb, Node}).
+  gen_server:call(Name, {add_neighb, Node}).
+
+% Esegue una chiamata sincrona per l'aggiunta di una lista di vicini alla tabella corrispondente
+add_neighbs(Name, Nodes = [_|_]) ->
+  gen_server:call(Name, {add_neighbs, Nodes}).
 
 % Esegue una chiamata sincrona per l'eliminazione di un vicino dalla tabella corrispondente
 rm_neighb(Name, Neighb) ->
   gen_server:call(Name, {rm_neighb, Neighb}).
+
+% Esegue una chiamata sincrona per l'eliminazione di un vicino dalla tabella corrispondente
+rm_neighb_with_hb(Name, Neighb) ->
+  gen_server:call(Name, {rm_neighb_with_hb, Neighb}).
 
 % Esegue una chiamata sincrona per aggiornare il valore del clock salvato
 update_clock(Name, Clock) ->
@@ -70,11 +82,14 @@ init(State_tables) ->
   {ok, #server_state{vars_table = Vars, rules_table = Rules, neighb_table = Neighb, node_params_table = NodeParams}}.
 
 handle_call({exec_action, X, _}, _From, State) ->
-  io:format("Ricevuta call con azione: ~p~n", [X]),
+  io:format("Ricevuta call con azione: ~p.~n", [X]),
   io:format("Stato: ~p~n", [State]),
   % TODO: modifica lo stato in base all'azione ricevuta
   {reply, done, State};
 handle_call({get_neighb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini salvata nella tabella neighb_table dello stato
+  Neighb_list = [Node_ID || {Node_ID, _Node_HB_name, _State} <- ets:tab2list(NT)],
+  {reply, {ok, Neighb_list}, State};
+handle_call({get_neighb_hb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini salvata nella tabella neighb_table dello stato
   Neighb_list = [Node_HB_name || {_Node_ID, Node_HB_name, _State} <- ets:tab2list(NT)],
   {reply, {ok, Neighb_list}, State};
 handle_call({get_clock}, _From, State = #server_state{node_params_table = NpT}) ->
@@ -85,16 +100,23 @@ handle_call({get_rules}, _From, State = #server_state{rules_table = NrT}) ->
 handle_call({rm_neighb, Neighb}, _From, State = #server_state{neighb_table = NT}) ->
   ets:delete(NT, Neighb),
   {reply, ok, State};
+handle_call({rm_neighb_with_hb, Neighb_hb}, _From, State = #server_state{neighb_table = NT}) ->
+  [[Node_id]] = ets:match(NT, {'$1', Neighb_hb, '_'}),
+  ets:delete(NT, Node_id),
+  {reply, ok, State};
 handle_call({update_clock, Clock}, _From, State = #server_state{node_params_table = NpT}) ->
   ets:insert(NpT, {clock, Clock}),
+  {reply, ok, State};
+handle_call({add_neighb, {Node_ID, Node_HB_name}}, _From, State = #server_state{neighb_table = NT}) ->  % Aggiunge un nodo vicino alla lista salvata nella tabella
+  ets:insert(NT, {Node_ID, Node_HB_name, deactivated}),
+  {reply, ok, State};
+handle_call({add_neighbs, Nodes = [_|_]}, _From, State = #server_state{neighb_table = NT}) ->  % Aggiunge una lista di nodi vicino alla lista salvata nella tabella
+  [ets:insert(NT, {Node_ID, Node_HB_name, deactivated}) || {Node_ID, Node_HB_name} <- Nodes],
   {reply, ok, State};
 handle_call(_Msg, _From, State) ->  % per gestire messaggi syncroni sconosciuti
   io:format("Non sto 'mbriacato~n"),
   {reply, done, State}.
 
-handle_cast({add_neighb, {Node_ID, Node_HB_name}}, State = #server_state{neighb_table = NT}) ->  % Aggiunge un nodo vicino alla lista salvata nella tabella
-  ets:insert(NT, {Node_ID, Node_HB_name, deactivated}),
-  {noreply, State};
 handle_cast(_Msg, State) ->  % per gestire messaggi asyncroni sconosciuti
   {noreply, State}.
 
