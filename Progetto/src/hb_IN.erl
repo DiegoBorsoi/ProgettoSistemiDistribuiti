@@ -121,7 +121,7 @@ listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, 
       if
         Clock < Clock_sender ->
           state_server:update_clock(Server_name, Clock_sender),
-          [Node ! {upd_lmp, HB_name, Clock_sender} || {Node, Node_clock} <- maps:to_list(NC), Node_clock < Clock_sender];
+          [Node ! {upd_lmp, HB_name, Clock_sender} || {Node, Node_clock} <- maps:to_list(NC), Node =/= Id_hb_sender, Node_clock < Clock_sender];
         true ->
           ok
       end,

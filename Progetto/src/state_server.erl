@@ -119,7 +119,7 @@ handle_call({rm_neighb_with_hb, Neighb_hb}, _From, State = #server_state{neighb_
   ets:delete(NT, Node_id),
   {reply, ok, State};
 handle_call({check_neighb, Neighb_hb}, _From, State = #server_state{neighb_table = NT, lost_connections = LC}) ->
-  [Node_id] = ets:match(NT, {'$1', Neighb_hb, '_'}),
+  Node_id = ets:match(NT, {'$1', Neighb_hb, '_'}),
   Found = (Node_id =/= []) and (([Neighb_hb] -- LC) =/= []),
   {reply, {ok, Found}, State};
 handle_call({get_rules}, _From, State = #server_state{rules_table = NrT}) ->
