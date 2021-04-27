@@ -9,13 +9,15 @@
 
 %% client functions
 -export([exec_action/2, update_clock/2, get_clock/1, get_rules/1]).
--export([get_neighb/1, get_neighb_hb/1, add_neighb/2, add_neighbs/2, rm_neighb/2, rm_neighb_with_hb/2]).
+-export([get_neighb/1, get_neighb_hb/1, add_neighb/2, add_neighbs/2, rm_neighb/2, rm_neighb_with_hb/2, check_neighb/2]).
+-export([ignore_neighb/2]).
 
 -record(server_state, {
   vars_table,
   rules_table,
   neighb_table,
-  node_params_table
+  node_params_table,
+  lost_connections
 }).
 
 %%%===================================================================
@@ -62,6 +64,9 @@ rm_neighb(Name, Neighb) ->
 rm_neighb_with_hb(Name, Neighb) ->
   gen_server:call(Name, {rm_neighb_with_hb, Neighb}).
 
+check_neighb(Name, Neighb_hb) ->
+  gen_server:call(Name, {check_neighb, Neighb_hb}).
+
 
 % Esegue una chiamata sincrona per ricevere la lista delle regole
 get_rules(Name) ->
@@ -76,6 +81,10 @@ get_clock(Name) ->
 update_clock(Name, Clock) ->
   gen_server:call(Name, {update_clock, Clock}).
 
+
+ignore_neighb(Name, Neighb) ->
+  gen_server:cast(Name, {ignore_neighb, Neighb}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -83,7 +92,7 @@ update_clock(Name, Clock) ->
 init(State_tables) ->
   process_flag(trap_exit, true),  % per effettuare la pulizia prima della terminazione (viene chiamata terminate/2)
   {Vars, Rules, Neighb, NodeParams} = State_tables,
-  {ok, #server_state{vars_table = Vars, rules_table = Rules, neighb_table = Neighb, node_params_table = NodeParams}}.
+  {ok, #server_state{vars_table = Vars, rules_table = Rules, neighb_table = Neighb, node_params_table = NodeParams, lost_connections = []}}.
 
 handle_call({exec_action, X, _}, _From, State) ->
   io:format("Ricevuta call con azione: ~p.~n", [X]),
@@ -109,6 +118,10 @@ handle_call({rm_neighb_with_hb, Neighb_hb}, _From, State = #server_state{neighb_
   [[Node_id]] = ets:match(NT, {'$1', Neighb_hb, '_'}),
   ets:delete(NT, Node_id),
   {reply, ok, State};
+handle_call({check_neighb, Neighb_hb}, _From, State = #server_state{neighb_table = NT, lost_connections = LC}) ->
+  [Node_id] = ets:match(NT, {'$1', Neighb_hb, '_'}),
+  Found = (Node_id =/= []) and (([Neighb_hb] -- LC) =/= []),
+  {reply, {ok, Found}, State};
 handle_call({get_rules}, _From, State = #server_state{rules_table = NrT}) ->
   {reply,{ok,ets:tab2list(NrT)},State};
 handle_call({get_clock}, _From, State = #server_state{node_params_table = NpT}) ->
@@ -121,6 +134,10 @@ handle_call(_Msg, _From, State) ->  % per gestire messaggi syncroni sconosciuti
   io:format("Non sto 'mbriacato~n"),
   {reply, done, State}.
 
+handle_cast({ignore_neighb, Neighb}, State = #server_state{neighb_table = NT, lost_connections = LC}) ->
+  [[Neighb_hb]] = ets:match(NT, {Neighb, '$1', '_'}),
+  New_LC = [Neighb_hb | LC],
+  {noreply, State#server_state{lost_connections = New_LC}};
 handle_cast(_Msg, State) ->  % per gestire messaggi asyncroni sconosciuti
   {noreply, State}.
 

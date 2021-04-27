@@ -85,10 +85,10 @@ listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, 
       Updated_NS = update_neighbs_state(NS),  % aggiorna lo stato dei vicini in modo da scoprire se qualcuno non ha risposto
       Neighbs_dead = maps:keys(maps:filter(fun(_Key, Value) -> Value == dead end, Updated_NS)), % lista dei vicini morti
       [state_server:rm_neighb_with_hb(Server_name, Node) || Node <- Neighbs_dead],  % elimino i morti dalla tabella nello state_server
-      Maybe_alive_NS = removes_dead(Updated_NS, Neighbs_dead),  % elimino i morti dalla mappa dello stato dei vicini
+      {Maybe_alive_NS, Maybe_alive_NC} = removes_dead(Updated_NS, NC, Neighbs_dead),  % elimino i morti dalla mappa dello stato dei vicini
 
       self() ! {start_echo},  % iniziamo un nuovo ciclo di ECHO
-      listen(State#hb_state{neighb_state = Maybe_alive_NS});
+      listen(State#hb_state{neighb_clocks = Maybe_alive_NC, neighb_state = Maybe_alive_NS});
     {echo_rpl, Id_hb, Clock} ->
       io:format("~p: Ricevuta risposta dell'echo_rqs da ~p.~n", [Id, Id_hb]),
       New_NC = maps:put(Id_hb, Clock, NC), % aggiorno il clock salvato del vicino
@@ -96,8 +96,14 @@ listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, 
       listen(State#hb_state{neighb_clocks = New_NC, neighb_state = New_NS});
     {echo_rqs, Id_hb_sender} ->
       io:format("~p: HeartBeat ricevuto da ~p.~n", [Id, Id_hb_sender]),
-      {ok, Clock} = state_server:get_clock(Server_name),
-      Id_hb_sender ! {echo_rpl, HB_name, Clock},
+      {ok, Guard} = state_server:check_neighb(Server_name, Id_hb_sender),
+      if
+        Guard ->
+          {ok, Clock} = state_server:get_clock(Server_name),
+          Id_hb_sender ! {echo_rpl, HB_name, Clock};
+        true ->
+          ok
+      end,
       listen(State);
     {add_new_nd, Id_sender, Id_hb_sender} ->
       io:format("~p: Ricevuta richiesta connessione alla rete di ~p.~n", [Id, Id_sender]),
@@ -159,7 +165,7 @@ update_neighbs_state_aux(Key, Value, Acc) -> % Value in questo caso può valere 
   maps:put(Key, Value, Acc).
 
 
-removes_dead(Updated_NS, _Neighbs_dead = [First_neighb | Tail]) ->
-  removes_dead(maps:remove(First_neighb, Updated_NS), Tail);
-removes_dead(Updated_NS, _) ->
-  Updated_NS.
+removes_dead(Updated_NS, NC, _Neighbs_dead = [First_neighb | Tail]) ->
+  removes_dead(maps:remove(First_neighb, Updated_NS), maps:remove(First_neighb, NC), Tail);
+removes_dead(Updated_NS, NC, _) ->
+  {Updated_NS, NC}.
