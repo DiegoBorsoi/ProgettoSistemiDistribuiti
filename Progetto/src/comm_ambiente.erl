@@ -11,11 +11,11 @@
 -export([add_neighb/2]).
 
 -record(comm_ambiente_state, {
-                                name,
-                                server_name,
-                                rules_worker_name,
-                                hb_name
-                              }).
+  name,
+  server_name,
+  rules_worker_name,
+  hb_name
+}).
 
 %%%===================================================================
 %%% API
@@ -54,7 +54,7 @@ handle_info({start_discovery}, State = #comm_ambiente_state{server_name = SN, hb
   receive
     {discover_neighbs, _Neighbs_list = []} ->
       ok;
-    {discover_neighbs, Neighbs_list = [_|_]} ->
+    {discover_neighbs, Neighbs_list = [_ | _]} ->
       io:format("Ricevuta lista di vicini: ~p.~n", [Neighbs_list]),
       state_server:add_neighbs(SN, Neighbs_list)
   end,
