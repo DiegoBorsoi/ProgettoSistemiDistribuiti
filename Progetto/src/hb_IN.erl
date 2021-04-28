@@ -5,12 +5,12 @@
 -export([init/3]).
 
 -record(hb_state, {
-                    id,
-                    hb_name,
-                    server_name,
-                    neighb_clocks,
-                    neighb_state
-                  }).
+  id,
+  hb_name,
+  server_name,
+  neighb_clocks,
+  neighb_state
+}).
 
 start_link(Id, Server_name, HB_name) ->
   Pid = spawn_link(?MODULE, init, [Id, Server_name, HB_name]),
@@ -19,11 +19,15 @@ start_link(Id, Server_name, HB_name) ->
 init(Id, Server_name, HB_name) ->
   register(HB_name, self()),
   State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name},
-  receive
-    {neighb_ready} -> % aspetto che il mio comm_ambiente abbia aggiornato la lista dei vicini
-      ok
-  end,
   {ok, Clock} = state_server:get_clock(Server_name),
+  case Clock of
+    -1 ->
+      receive
+        {neighb_ready} -> % aspetto che il mio comm_ambiente abbia aggiornato la lista dei vicini
+          ok
+      end;
+    _ -> ok
+  end,
   {ok, Neighbs} = state_server:get_neighb_hb(Server_name),
   case {Clock, Neighbs} of
     {-1, []} -> % siamo gli unici nella rete
@@ -40,7 +44,14 @@ init(Id, Server_name, HB_name) ->
 
 % esecuzione del protocollo di annessione di un nuovo nodo alla rete
 enter_network(Neighbs, _State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name}) ->
-  [Node ! {add_new_nd, Id, HB_name} || Node <- Neighbs], % invia un messaggio ad ogni vicino raggiungibile
+  lists:foreach(fun(Node) ->  % invia un messaggio ad ogni vicino maybe raggiungibile
+    try
+      Node ! {add_new_nd, Id, HB_name}
+    catch
+      _:_ -> ok
+    end
+                end,
+    Neighbs),
   Neighbs_clocks = maps:from_list([{Node, -1} || Node <- Neighbs]),  % crea una mappa per il salvataggio del clock dei vicini
   % dopo 10 secondi un messaggio viene inviato, serve per mettere un tempo massimo nell'attesa dei messaggi di risposta nella connessione alla rete
   erlang:send_after(10000, self(), {add_timer_ended}),
@@ -61,15 +72,29 @@ wait_for_all_neighbs(Neighbs_clocks, Server_name) ->
           wait_for_all_neighbs(New_Neighbs_clocks, Server_name)
       end;
     {add_timer_ended} -> % il tempo massimo è scaduto, i nodi che non hanno risposto sono considerati morti
-      [state_server:rm_neighb_with_hb(Server_name, Node) || Node <- maps:keys(maps:filter(fun(_Key, Value) -> Value == -1 end, Neighbs_clocks))],
+      [state_server:rm_neighb_with_hb(Server_name, Node) || Node <- maps:keys(maps:filter(fun(_Key, Value) ->
+        Value == -1 end, Neighbs_clocks))],
       maps:filter(fun(_Key, Value) -> Value =/= -1 end, Neighbs_clocks)
   end.
 
 % Funzione per estrarre il massimo dei clock dei vicini ed inviare un apposito messaggio a quelli con clock minore
 check_clock_values(Neighbs_clocks, HB_name, Server_name) ->
   {_Clock_neighb, Clock} = maps:fold(fun get_max_map_value/3, {undefined, undefined}, Neighbs_clocks),
-  state_server:update_clock(Server_name, Clock),
-  [Node ! {upd_lmp, HB_name, Clock} || Node <- maps:keys(maps:filter(fun(_Key, Value) -> Value < Clock end, Neighbs_clocks))],
+  case Clock of
+    undefined ->
+      state_server:update_clock(Server_name, 0);
+    _ ->
+      state_server:update_clock(Server_name, Clock)
+  end,
+  %state_server:update_clock(Server_name, Clock),
+  lists:foreach(fun(Node) ->  % invia un messaggio ad ogni vicino upd_clk maybe raggiungibile
+    try
+      Node ! {upd_lmp, HB_name, Clock}
+    catch
+      _:_ -> ok
+    end
+                end,
+    maps:keys(maps:filter(fun(_Key, Value) -> Value < Clock end, Neighbs_clocks))),
   ok.
 
 listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, neighb_clocks = NC, neighb_state = NS}) ->
@@ -100,7 +125,12 @@ listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, 
       if
         Guard ->
           {ok, Clock} = state_server:get_clock(Server_name),
-          Id_hb_sender ! {echo_rpl, HB_name, Clock};
+          try
+            Id_hb_sender ! {echo_rpl, HB_name, Clock}
+          catch
+            _:_ ->
+              ok
+          end;
         true ->
           ok
       end,
@@ -108,20 +138,28 @@ listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, 
     {add_new_nd, Id_sender, Id_hb_sender} ->
       io:format("~p: Ricevuta richiesta connessione alla rete di ~p.~n", [Id, Id_sender]),
       state_server:add_neighb(Server_name, {Id_sender, Id_hb_sender}),
-      Clock = state_server:get_clock(Server_name),
-      Id_hb_sender ! {add_new_nb, HB_name, Clock},
-      % aggiorno le due mappe usate presenti nello stato
+      {ok, Clock} = state_server:get_clock(Server_name),
+      try
+        Id_hb_sender ! {add_new_nb, HB_name, Clock}
+      catch
+        _:_ -> ok
+      end,
+% aggiorno le due mappe usate presenti nello stato
       New_NC = maps:put(Id_hb_sender, Clock, NC),
       New_NS = maps:put(Id_hb_sender, alive, NS),
       listen(State#hb_state{neighb_clocks = New_NC, neighb_state = New_NS});
     {upd_lmp, Id_hb_sender, Clock_sender} ->
-      io:format("~p: Ricevuto ordine di aggiornamento del clock.~n", [Id]),
-      % se il nuovo clock è maggiore del mio, lo aggiorno e inoltro il messaggio ai miei vicini con clock minore
-      Clock = state_server:get_clock(Server_name),
+      io:format("~p: Ricevuto ordine di aggiornamento del clock:<~p>.~n", [Id, Clock_sender]),
+% se il nuovo clock è maggiore del mio, lo aggiorno e inoltro il messaggio ai miei vicini con clock minore
+      {ok, Clock} = state_server:get_clock(Server_name),
       if
         Clock < Clock_sender ->
           state_server:update_clock(Server_name, Clock_sender),
-          [Node ! {upd_lmp, HB_name, Clock_sender} || {Node, Node_clock} <- maps:to_list(NC), Node =/= Id_hb_sender, Node_clock < Clock_sender];
+          [try
+             Node ! {upd_lmp, HB_name, Clock_sender}
+           catch
+             _:_ -> ok
+           end || {Node, Node_clock} <- maps:to_list(NC), Node =/= Id_hb_sender, Node_clock < Clock_sender];
         true ->
           ok
       end,
