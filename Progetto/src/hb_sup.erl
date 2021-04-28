@@ -23,11 +23,11 @@ init([Id, Server_name, HB_name]) ->
   MaxRestartPeriod = 5,
   SupFlags = #{strategy => one_for_one, intensity => MaxRestart, period => MaxRestartPeriod},
   ChildSpecs = [#{id => hb_IN,
-                  start => {hb_IN, start_link, [Id, Server_name, HB_name]},
-                  restart => permanent,
-                  shutdown => infinity,
-                  type => worker,
-                  modules => [hb_IN]}
+    start => {hb_IN, start_link, [Id, Server_name, HB_name]},
+    restart => permanent,
+    shutdown => infinity,
+    type => worker,
+    modules => [hb_IN]}
   ],
   {ok, {SupFlags, ChildSpecs}}.
 

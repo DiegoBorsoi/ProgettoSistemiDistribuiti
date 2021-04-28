@@ -53,7 +53,7 @@ add_neighb(Name, Node = {_Node_ID, _Node_HB_name}) ->
   gen_server:call(Name, {add_neighb, Node}).
 
 % Esegue una chiamata sincrona per l'aggiunta di una lista di vicini alla tabella corrispondente
-add_neighbs(Name, Nodes = [_|_]) ->
+add_neighbs(Name, Nodes = [_ | _]) ->
   gen_server:call(Name, {add_neighbs, Nodes}).
 
 % Esegue una chiamata sincrona per l'eliminazione di un vicino dalla tabella corrispondente
@@ -108,7 +108,7 @@ handle_call({get_neighb_hb}, _From, State = #server_state{neighb_table = NT}) ->
 handle_call({add_neighb, {Node_ID, Node_HB_name}}, _From, State = #server_state{neighb_table = NT}) ->  % Aggiunge un nodo vicino alla lista salvata nella tabella
   ets:insert(NT, {Node_ID, Node_HB_name, deactivated}),
   {reply, ok, State};
-handle_call({add_neighbs, Nodes = [_|_]}, _From, State = #server_state{neighb_table = NT}) ->  % Aggiunge una lista di nodi vicino alla lista salvata nella tabella
+handle_call({add_neighbs, Nodes = [_ | _]}, _From, State = #server_state{neighb_table = NT}) ->  % Aggiunge una lista di nodi vicino alla lista salvata nella tabella
   [ets:insert(NT, {Node_ID, Node_HB_name, deactivated}) || {Node_ID, Node_HB_name} <- Nodes],
   {reply, ok, State};
 handle_call({rm_neighb, Neighb}, _From, State = #server_state{neighb_table = NT}) ->
@@ -123,7 +123,7 @@ handle_call({check_neighb, Neighb_hb}, _From, State = #server_state{neighb_table
   Found = (Node_id =/= []) and (([Neighb_hb] -- LC) =/= []),
   {reply, {ok, Found}, State};
 handle_call({get_rules}, _From, State = #server_state{rules_table = NrT}) ->
-  {reply,{ok,ets:tab2list(NrT)},State};
+  {reply, {ok, ets:tab2list(NrT)}, State};
 handle_call({get_clock}, _From, State = #server_state{node_params_table = NpT}) ->
   [[Clock]] = ets:match(NpT, {clock, '$1'}),
   {reply, {ok, Clock}, State};

@@ -12,14 +12,14 @@ start_link(Id, State_server, Rules_worker) ->
 
 init(Id, State_server, Rules_worker) ->
   register(Id, self()),
-  FloodTable = ets:new(flood_table , [
+  FloodTable = ets:new(flood_table, [
     bag,
     public,
-    {keypos,1},
-    {heir,none},
-    {write_concurrency,false},
-    {read_concurrency,false},
-    {decentralized_counters,false}
+    {keypos, 1},
+    {heir, none},
+    {write_concurrency, false},
+    {read_concurrency, false},
+    {decentralized_counters, false}
   ]),
   listen(#comm_IN_state{server = State_server, rules_worker = Rules_worker, flood_table = FloodTable}).
 
