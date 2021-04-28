@@ -6,7 +6,8 @@
 
 
 -record(ambiente_state, {
-  graph     %lista del grafo
+  graph,     %ets del grafo
+  id_spwn
 }).
 
 start_gen1() ->
@@ -18,13 +19,12 @@ start_link(GraphFile) ->
   CF = utils:check_graph(Types, Graph),
   if
     CF ->
-      Pid = spawn_link(?MODULE, init, [ambiente, Graph]),
+      spawn_link(?MODULE, init, [ambiente, Graph]),
       [supervisor_nodo:start_link(Id, Tp) || {Id, Tp, _} <- Graph];
     true ->
-      io:format("Errore nel grafo descritto in ~p.~n", [GraphFile]),
-      Pid = -1
+      io:format("Errore nel grafo descritto in ~p.~n", [GraphFile])
   end,
-  {ok, Pid}.
+  ok.
 
 init(Ambiente_name, GraphList) ->
   register(Ambiente_name, self()),
@@ -38,21 +38,16 @@ init(Ambiente_name, GraphList) ->
     {decentralized_counters, false}
   ]),
   [ets:insert(Graph, Node) || Node <- GraphList],
-  State = #ambiente_state{graph = Graph},
+  State = #ambiente_state{graph = Graph, id_spwn = maps:new()},
   listen(State).
 
-listen(State = #ambiente_state{graph = Graph}) ->
+listen(State = #ambiente_state{graph = Graph, id_spwn = ID_Spwn}) ->
   receive
-    {nodo_avviato, Name, {Id, _HB_name}} ->
+    {nodo_avviato, Name, {Id, HB_name}} ->
       [[NeightboardsList]] = ets:match(Graph, {Id, '_', '$1'}),
-      NBL = lists:map(fun(X) ->
-        X_hb = list_to_atom(atom_to_list(X) ++ "_heartbeat_in"),
-        {X, X_hb}
-                      end,
-        NeightboardsList
-      ),
+      NBL = [{Node, maps:get(Node, ID_Spwn)} || Node <- NeightboardsList, maps:is_key(Node, ID_Spwn)],
       Name ! {discover_neighbs, NBL},
-      listen(State);
+      listen(#ambiente_state{graph = Graph, id_spwn = maps:put(Id, HB_name, ID_Spwn)});
     _ ->
       io:format("ambiente: messaggio sconosciuto!"),
       listen(State)
