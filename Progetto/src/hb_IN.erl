@@ -144,13 +144,13 @@ listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, 
       catch
         _:_ -> ok
       end,
-% aggiorno le due mappe usate presenti nello stato
+      % aggiorno le due mappe usate presenti nello stato
       New_NC = maps:put(Id_hb_sender, Clock, NC),
       New_NS = maps:put(Id_hb_sender, alive, NS),
       listen(State#hb_state{neighb_clocks = New_NC, neighb_state = New_NS});
     {upd_lmp, Id_hb_sender, Clock_sender} ->
       io:format("~p: Ricevuto ordine di aggiornamento del clock:<~p>.~n", [Id, Clock_sender]),
-% se il nuovo clock è maggiore del mio, lo aggiorno e inoltro il messaggio ai miei vicini con clock minore
+      % se il nuovo clock è maggiore del mio, lo aggiorno e inoltro il messaggio ai miei vicini con clock minore
       {ok, Clock} = state_server:get_clock(Server_name),
       if
         Clock < Clock_sender ->
