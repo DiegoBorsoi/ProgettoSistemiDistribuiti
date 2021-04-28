@@ -28,7 +28,7 @@ start_link() ->
 %%%===================================================================
 
 ignore_neighb(Id_ignoring, Id_ignored) ->
-  gen_server:cast(ambiente, {ignore_neighb, Id_ignoring, Id_ignored}).
+  gen_server:cast(ambiente, {ignore_nb, Id_ignoring, Id_ignored}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -53,6 +53,7 @@ init([GraphFile]) ->
     {decentralized_counters, false}
   ]),
   ets:insert(Graph, GraphList),
+  % TODO: rendere consistente il grafo (lista dei vicini di ogni nodo)
   {ok, #ambiente_state{graph = Graph, id_spwn = maps:new(), comm_spwn = maps:new()}}.
 
 
@@ -64,7 +65,12 @@ handle_cast({ignore_nb, Id_ignoring, Id_ignored}, State = #ambiente_state{graph 
   case [Id_ignored] -- Neighbs of
     [] ->
       try
-        comm_ambiente:ignore_neighb(maps:get(Id_ignoring, Comm), Id_ignored)
+        comm_ambiente:ignore_neighb(maps:get(Id_ignoring, Comm), Id_ignored),
+        % aggiorniamo la tabella contenente la struttura del grafo
+        [{_, Tipo_ignoring, NBL_ignoring}] = ets:lookup(Graph, Id_ignoring),
+        ets:insert(Graph, {Id_ignoring, Tipo_ignoring, NBL_ignoring -- [Id_ignored]}),
+        [{_, Tipo_ignored, NBL_ignored}] = ets:lookup(Graph, Id_ignored),
+        ets:insert(Graph, {Id_ignored, Tipo_ignored, NBL_ignored -- [Id_ignoring]})
       catch
         _:_ ->
           io:format("ambiente: Errore -> Nodo ignorante errato (~p, ~p).~n", [Id_ignoring, Id_ignored])
@@ -97,3 +103,4 @@ code_change(_OldVsn, State = #ambiente_state{}, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
