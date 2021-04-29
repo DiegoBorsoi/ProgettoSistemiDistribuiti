@@ -44,17 +44,9 @@ init(Id, Server_name, HB_name) ->
 
 % esecuzione del protocollo di annessione di un nuovo nodo alla rete
 enter_network(Neighbs, _State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name}) ->
-  lists:foreach(fun(Node) ->  % invia un messaggio ad ogni vicino maybe raggiungibile
-    try
-      Node ! {add_new_nd, Id, HB_name}
-    catch
-      _:_ -> ok
-    end
-                end,
-    Neighbs),
+  spawn(hb_OUT, init, [{add_new_nd, Id, HB_name}, Neighbs]), % invia un messaggio ad ogni vicino maybe raggiungibile
+
   Neighbs_clocks = maps:from_list([{Node, -1} || Node <- Neighbs]),  % crea una mappa per il salvataggio del clock dei vicini
-  % dopo 10 secondi un messaggio viene inviato, serve per mettere un tempo massimo nell'attesa dei messaggi di risposta nella connessione alla rete
-  erlang:send_after(10000, self(), {add_timer_ended}),
   New_neighbs_clocks = wait_for_all_neighbs(Neighbs_clocks, Server_name),
   check_clock_values(New_neighbs_clocks, HB_name, Server_name),
   New_neighbs_clocks.
@@ -86,15 +78,8 @@ check_clock_values(Neighbs_clocks, HB_name, Server_name) ->
     _ ->
       state_server:update_clock(Server_name, Clock)
   end,
-  %state_server:update_clock(Server_name, Clock),
-  lists:foreach(fun(Node) ->  % invia un messaggio ad ogni vicino upd_clk maybe raggiungibile
-    try
-      Node ! {upd_lmp, HB_name, Clock}
-    catch
-      _:_ -> ok
-    end
-                end,
-    maps:keys(maps:filter(fun(_Key, Value) -> Value < Clock end, Neighbs_clocks))),
+  % invia un messaggio ad ogni vicino upd_clk maybe raggiungibile
+  spawn(hb_OUT, init, [{upd_lmp, HB_name, Clock}, maps:keys(maps:filter(fun(_Key, Value) -> Value < Clock end, Neighbs_clocks))]),
   ok.
 
 listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, neighb_clocks = NC, neighb_state = NS}) ->
@@ -102,8 +87,12 @@ listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, 
     {start_echo} ->
       io:format("~p: Inizio procedura echo.~n", [Id]),
       New_NS = set_neighbs_state(NS),
+
       % viene create il processo hb_OUT che si occupa di inviare il messaggio di echo_rqs a tutti i vicini
-      spawn(hb_OUT, init, [Server_name, HB_name]),
+      {ok, Neighbs} = state_server:get_neighb_hb(Server_name),
+      Msg = {echo_rqs, HB_name},
+      spawn(hb_OUT, init, [Msg, Neighbs]),
+
       listen(State#hb_state{neighb_state = New_NS});
     {echo_timer_ended} ->
       io:format("~p: Timer dell'ECHO finito.~n", [Id]),
@@ -155,11 +144,12 @@ listen(State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name, 
       if
         Clock < Clock_sender ->
           state_server:update_clock(Server_name, Clock_sender),
-          [try
-             Node ! {upd_lmp, HB_name, Clock_sender}
-           catch
-             _:_ -> ok
-           end || {Node, Node_clock} <- maps:to_list(NC), Node =/= Id_hb_sender, Node_clock < Clock_sender];
+          spawn(hb_OUT, init, [
+            {upd_lmp, HB_name, Clock_sender},
+            maps:to_list(maps:filter(
+              fun(Node, Node_clock) -> (Node =/= Id_hb_sender) and (Node_clock < Clock_sender) end,
+              NC))
+          ]);
         true ->
           ok
       end,
