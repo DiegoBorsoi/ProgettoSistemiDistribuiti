@@ -2,17 +2,20 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/2]).
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% client functions
 -export([exec_action/2, update_clock/2, get_clock/1, get_rules/1]).
--export([get_neighb/1, get_neighb_hb/1, add_neighb/2, add_neighbs/2, rm_neighb/2, rm_neighb_with_hb/2, check_neighb/2]).
+-export([get_neighb/1, get_neighb_hb/1, add_neighb/2, add_neighbs/2, rm_neighb/2, rm_neighb_with_hb/2, check_neighb/2, get_neighb_map/1]).
+-export([get_tree_state/1, reset_tree_state/1, set_tree_state/2, set_tree_active_port/2, rm_tree_active_port/2]).
+-export([get_active_neighb/1, get_active_neighb_hb/1]).
 -export([ignore_neighb/2]).
 
 -record(server_state, {
+  id,
   vars_table,
   rules_table,
   neighb_table,
@@ -24,9 +27,9 @@
 %%% API
 %%%===================================================================
 
-start_link(Name, State_tables) when is_atom(Name) ->
-  gen_server:start_link({local, Name}, ?MODULE, State_tables, []);
-start_link(Name, _State_table) ->
+start_link(Name, Id, State_tables) when is_atom(Name) ->
+  gen_server:start_link({local, Name}, ?MODULE, [Id, State_tables], []);
+start_link(Name, _Id, _State_table) ->
   io:format("Errore nella creazione dello state_server: ~p non è un nome valido.~n", [Name]).
 
 %%%===================================================================
@@ -67,6 +70,10 @@ rm_neighb_with_hb(Name, Neighb) ->
 check_neighb(Name, Neighb_hb) ->
   gen_server:call(Name, {check_neighb, Neighb_hb}).
 
+% Esegue una chiamata sincrona per ottenere un mappa contenente per ogni vicino {Id -> HB}
+get_neighb_map(Name) ->
+  gen_server:call(Name, {get_neighb_map}).
+
 
 % Esegue una chiamata sincrona per ricevere la lista delle regole
 get_rules(Name) ->
@@ -82,6 +89,39 @@ update_clock(Name, Clock) ->
   gen_server:call(Name, {update_clock, Clock}).
 
 
+% Esegue una chiamata sincrona per ottenre lo stato dell'albero di comunicazione,
+% cioè una tupla del tipo {Id_root, dist, Id_route_port}
+get_tree_state(Name) ->
+  gen_server:call(Name, {get_tree_state}).
+
+% Esegue una chiamata sincrona per resettare il valore salvato per l'albero di comunicazione
+reset_tree_state(Name) ->
+  gen_server:call(Name, {reset_tree_state}).
+
+% Esegue una chiamata sincrona per impostare il valore salvato per l'albero di comunicazione ad un nuovo valore
+set_tree_state(Name, Tree_state) ->
+  gen_server:call(Name, {set_tree_state, Tree_state}).
+
+% Esegue una chiamata sincrona per impostare ad active un determinato vicino
+set_tree_active_port(Name, ID_port) ->
+  gen_server:call(Name, {set_tree_active_port, ID_port}).
+
+% Esegue una chiamata sincrona per impostare a disable un determinato vicino
+rm_tree_active_port(Name, ID_port) ->
+  gen_server:call(Name, {rm_tree_active_port, ID_port}).
+
+
+% Eseguo una chiamata sincrona per ottenre la lista di vicini attivi (con stato active o route_port)
+get_active_neighb(Name) ->
+  gen_server:call(Name, {get_active_neighb}).
+
+% Eseguo una chiamata sincrona per ottenre la lista degli HB dei vicini attivi (con stato active o route_port)
+get_active_neighb_hb(Name) ->
+  gen_server:call(Name, {get_active_neighb_hb}).
+
+
+% Permette di aggiungere un vicino alla lista di nodi ignorati
+% (funzione utile per siulare una perdita del canale di comunicazione)
 ignore_neighb(Name, Neighb) ->
   gen_server:cast(Name, {ignore_neighb, Neighb}).
 
@@ -89,10 +129,10 @@ ignore_neighb(Name, Neighb) ->
 %%% gen_server callbacks
 %%%===================================================================
 
-init(State_tables) ->
+init([Id, State_tables]) ->
   process_flag(trap_exit, true),  % per effettuare la pulizia prima della terminazione (viene chiamata terminate/2)
   {Vars, Rules, Neighb, NodeParams} = State_tables,
-  {ok, #server_state{vars_table = Vars, rules_table = Rules, neighb_table = Neighb, node_params_table = NodeParams, lost_connections = []}}.
+  {ok, #server_state{id = Id, vars_table = Vars, rules_table = Rules, neighb_table = Neighb, node_params_table = NodeParams, lost_connections = []}}.
 
 handle_call({exec_action, X, _}, _From, State) ->
   io:format("Ricevuta call con azione: ~p.~n", [X]),
@@ -106,10 +146,10 @@ handle_call({get_neighb_hb}, _From, State = #server_state{neighb_table = NT}) ->
   Neighb_list = [Node_HB_name || {_Node_ID, Node_HB_name, _State} <- ets:tab2list(NT)],
   {reply, {ok, Neighb_list}, State};
 handle_call({add_neighb, {Node_ID, Node_HB_name}}, _From, State = #server_state{neighb_table = NT}) ->  % Aggiunge un nodo vicino alla lista salvata nella tabella
-  ets:insert(NT, {Node_ID, Node_HB_name, deactivated}),
+  ets:insert(NT, {Node_ID, Node_HB_name, disable}),
   {reply, ok, State};
 handle_call({add_neighbs, Nodes = [_ | _]}, _From, State = #server_state{neighb_table = NT}) ->  % Aggiunge una lista di nodi vicino alla lista salvata nella tabella
-  [ets:insert(NT, {Node_ID, Node_HB_name, deactivated}) || {Node_ID, Node_HB_name} <- Nodes],
+  [ets:insert(NT, {Node_ID, Node_HB_name, disable}) || {Node_ID, Node_HB_name} <- Nodes],
   {reply, ok, State};
 handle_call({rm_neighb, Neighb}, _From, State = #server_state{neighb_table = NT}) ->
   ets:delete(NT, Neighb),
@@ -122,6 +162,9 @@ handle_call({check_neighb, Neighb_hb}, _From, State = #server_state{neighb_table
   Node_id = ets:match(NT, {'$1', Neighb_hb, '_'}),
   Found = (Node_id =/= []) and (([Neighb_hb] -- LC) =/= []),
   {reply, {ok, Found}, State};
+handle_call({get_neighb_map}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la map dei vicini
+  Neighb_map = maps:from_list([{Node_ID, Node_HB} || {Node_ID, Node_HB, _State} <- ets:tab2list(NT)]),
+  {reply, {ok, Neighb_map}, State};
 handle_call({get_rules}, _From, State = #server_state{rules_table = NrT}) ->
   {reply, {ok, ets:tab2list(NrT)}, State};
 handle_call({get_clock}, _From, State = #server_state{node_params_table = NpT}) ->
@@ -130,6 +173,62 @@ handle_call({get_clock}, _From, State = #server_state{node_params_table = NpT}) 
 handle_call({update_clock, Clock}, _From, State = #server_state{node_params_table = NpT}) ->
   ets:insert(NpT, {clock, Clock}),
   {reply, ok, State};
+handle_call({get_tree_state}, _From, State = #server_state{node_params_table = NpT}) ->
+  [[Tree_state]] = ets:match(NpT, {tree_state, '$1'}),
+  {reply, {ok, Tree_state}, State};
+handle_call({reset_tree_state}, _From, State = #server_state{id = Id, neighb_table = NT, node_params_table = NpT}) ->
+  [[{_Old_root, _Old_dist, Old_RP}]] = ets:match(NpT, {tree_state, '$1'}),
+  if
+    Old_RP == Id -> ok; % se la RP ero io non faccio nulla
+    true -> % altrimenti imposto lo stato della vecchia RP a disable (era route_port)
+      try
+        [[Old_RP_HB_]] = ets:match(NT, {Old_RP, '$1', '_'}),
+        ets:insert(NT, {Old_RP, Old_RP_HB_, disable})
+      catch
+        _:_ -> ok
+      end
+  end,
+  ets:insert(NpT, {tree_state, {Id, 0, Id}}),
+  {reply, ok, State};
+handle_call({set_tree_state, Tree_state = {_Id_root, _Dist, Id_RP}}, _From, State = #server_state{id = Id, neighb_table = NT, node_params_table = NpT}) ->
+  [[{_Old_root, _Old_dist, Old_RP}]] = ets:match(NpT, {tree_state, '$1'}), % cerco il vecchio stato dell'albero
+  if
+    Old_RP == Id -> ok; % se la RP ero io non faccio nulla
+    true -> % altrimenti imposto lo stato della vecchia RP a disable (era route_port)
+      try
+        [[Old_RP_HB_]] = ets:match(NT, {Old_RP, '$1', '_'}),
+        ets:insert(NT, {Old_RP, Old_RP_HB_, disable})
+      catch
+        _:_ -> ok
+      end
+  end,
+  ets:insert(NpT, {tree_state, Tree_state}), % aggiorno lo stato dell'albero salvato
+  % cerco e aggiorno lo stato della nuova route port
+  [[HB_RP]] = ets:match(NT, {Id_RP, '$1', '_'}),
+  ets:insert(NT, {Id_RP, HB_RP, route_port}),
+  {reply, ok, State};
+handle_call({set_tree_active_port, ID_port}, _From, State = #server_state{neighb_table = NT}) ->
+  try
+    [[HB_port]] = ets:match(NT, {ID_port, '$1', '_'}),
+    ets:insert(NT, {ID_port, HB_port, active})
+  catch
+    _:_ -> ok
+  end,
+  {reply, ok, State};
+handle_call({rm_tree_active_port, ID_port}, _From, State = #server_state{neighb_table = NT}) ->
+  try
+    [[HB_port]] = ets:match(NT, {ID_port, '$1', '_'}),
+    ets:insert(NT, {ID_port, HB_port, disable})
+  catch
+    _:_ -> ok
+  end,
+  {reply, ok, State};
+handle_call({get_active_neighb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini attivi
+  Neighb_list = [Node_ID || {Node_ID, _Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable],
+  {reply, {ok, Neighb_list}, State};
+handle_call({get_active_neighb_hb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini attivi
+  Neighb_hb_list = [Node_HB_name || {_Node_ID, Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable],
+  {reply, {ok, Neighb_hb_list}, State};
 handle_call(_Msg, _From, State) ->  % per gestire messaggi syncroni sconosciuti
   io:format("Non sto 'mbriacato~n"),
   {reply, done, State}.
@@ -141,8 +240,12 @@ handle_cast({ignore_neighb, Neighb}, State = #server_state{neighb_table = NT, lo
 handle_cast(_Msg, State) ->  % per gestire messaggi asyncroni sconosciuti
   {noreply, State}.
 
+handle_info(get_neighb_all, State = #server_state{neighb_table = NT}) -> % debug
+  Neighbs = ets:tab2list(NT),
+  io:format("Vicini: ~p.~n", [Neighbs]),
+  {noreply, State};
 handle_info(Msg, State) ->  % per gestire messaggi sconosciuti
-  io:format("Unknown msg: ~p~n", [Msg]),
+  io:format("Unknown msg: ~p.~n", [Msg]),
   {noreply, State}.
 
 terminate(shutdown, _State) ->

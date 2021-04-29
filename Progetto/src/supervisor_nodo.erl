@@ -19,7 +19,7 @@ start_link(Id, Tipo) ->
 %%%===================================================================
 
 init({Id, Tipo}) ->
-  State_tables = create_table(Tipo),
+  State_tables = create_table(Id, Tipo),
   Server_name = list_to_atom(atom_to_list(Id) ++ "_server"),
   Rules_worker_name = list_to_atom(atom_to_list(Id) ++ "_rules_worker"),
   Comm_ambiente_name = list_to_atom(atom_to_list(Id) ++ "_comm_ambiente"),
@@ -29,7 +29,7 @@ init({Id, Tipo}) ->
   SupFlags = #{strategy => one_for_one, intensity => MaxRestart, period => MaxRestartPeriod},
   ChildSpecs = [
     #{id => state_server,
-      start => {state_server, start_link, [Server_name, State_tables]},
+      start => {state_server, start_link, [Server_name, Id, State_tables]},
       restart => permanent,
       shutdown => infinity,
       type => worker,
@@ -53,7 +53,7 @@ init({Id, Tipo}) ->
 %%% Internal functions
 %%%===================================================================
 
-create_table(Tipo) ->
+create_table(Id, Tipo) ->
   % tabella per il salvataggio delle variabili di stato
   % {name, Value}
   Vars = ets:new(tabella_vars, [
@@ -101,7 +101,7 @@ create_table(Tipo) ->
     {read_concurrency, false},
     {decentralized_counters, false}
   ]),
-  ets:insert(NodeParams, [{clock, -1}, {tipo, Tipo}]),
+  ets:insert(NodeParams, [{id, Id}, {clock, -1}, {tipo, Tipo}, {tree_state, {Id, 0, Id}}]),
   % TODO: leggere da file per aggiungere lo stato iniziale e le regole
   {ok, File} = file:consult(list_to_atom(atom_to_list(Tipo) ++ "_rules.txt")),
   %io:format("File: ~p\n", [File]),
