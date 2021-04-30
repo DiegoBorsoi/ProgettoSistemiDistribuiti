@@ -8,12 +8,13 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% client functions
--export([ignore_neighb/2]).
+-export([ignore_neighb/2, kill_node/1]).
 
 -record(ambiente_state, {
   graph,     %ets del grafo
   id_spwn,
-  comm_spwn
+  comm_spwn,
+  id_sup_node
 }).
 
 %%%===================================================================
@@ -29,6 +30,9 @@ start_link() ->
 
 ignore_neighb(Id_ignoring, Id_ignored) ->
   gen_server:cast(ambiente, {ignore_nb, Id_ignoring, Id_ignored}).
+
+kill_node(Id) ->
+  gen_server:cast(ambiente, {kill_node, Id}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -53,8 +57,9 @@ init([GraphFile]) ->
     {decentralized_counters, false}
   ]),
   ets:insert(Graph, GraphList),
+  process_flag(trap_exit, true),
   % TODO: rendere consistente il grafo (lista dei vicini di ogni nodo)
-  {ok, #ambiente_state{graph = Graph, id_spwn = maps:new(), comm_spwn = maps:new()}}.
+  {ok, #ambiente_state{graph = Graph, id_spwn = maps:new(), comm_spwn = maps:new(), id_sup_node = maps:new()}}.
 
 
 handle_call(_Request, _From, State = #ambiente_state{}) ->
@@ -79,12 +84,38 @@ handle_cast({ignore_nb, Id_ignoring, Id_ignored}, State = #ambiente_state{graph 
       io:format("ambiente: Errore -> Nodo vicino errato (~p, ~p).~n", [Id_ignoring, Id_ignored])
   end,
   {noreply, State};
+handle_cast({kill_node, Id},
+    State = #ambiente_state{
+      graph = Graph,
+      id_sup_node = MsupNode,
+      id_spwn = Mspw,
+      comm_spwn = Mcommspw}) ->
+  try
+    {Pid_sup_node, _} = maps:take(Id, MsupNode),
+    ets:delete(Graph, Id),  %TODO: rimuoverlo dai vicini
+    exit(Pid_sup_node, shutdown)
+  catch
+    _:_ ->
+      io:format("ambiente: unable to locate child(~p).\n", [Id])
+  end,
+  {noreply,
+    State#ambiente_state{
+      id_sup_node = maps:remove(Id, MsupNode),
+      id_spwn = maps:remove(Id, Mspw),
+      comm_spwn = maps:remove(Id, Mcommspw)
+    }};
 handle_cast(_Request, State = #ambiente_state{}) ->
   {noreply, State}.
 
-handle_info({start_nodes}, State = #ambiente_state{graph = Graph}) ->
-  [supervisor_nodo:start_link(Id, Tp) || {Id, Tp, _} <- lists:reverse(ets:tab2list(Graph))],
-  {noreply, State};
+handle_info({start_nodes}, State = #ambiente_state{graph = Graph, id_sup_node = LSN}) ->
+  NewLSN = lists:foldr(
+    fun(_Node = {Id, Tp, _}, Map) ->
+      {ok, Pid} = supervisor_nodo:start_link(Id, Tp),
+      maps:put(Id, Pid, Map)
+    end,
+    LSN,
+    ets:tab2list(Graph)),
+  {noreply, State#ambiente_state{id_sup_node = NewLSN}};
 handle_info({nodo_avviato, Name, {Id, HB_name}}, State = #ambiente_state{graph = Graph, id_spwn = ID_Spwn, comm_spwn = Comm}) ->
   [[NeightboardsList]] = ets:match(Graph, {Id, '_', '$1'}),
   NBL = [{Node, maps:get(Node, ID_Spwn)} || Node <- NeightboardsList, maps:is_key(Node, ID_Spwn)],
