@@ -120,6 +120,13 @@ handle_info({nodo_avviato, Name, {Id, HB_name}}, State = #ambiente_state{graph =
   [[NeightboardsList]] = ets:match(Graph, {Id, '_', '$1'}),
   NBL = [{Node, maps:get(Node, ID_Spwn)} || Node <- NeightboardsList, maps:is_key(Node, ID_Spwn)],
   Name ! {discover_neighbs, NBL},
+  lists:foreach(fun(Node) ->
+    [{IdN, Tpe, NBlist}] = ets:lookup(Graph, Node),
+    NNBlist = ((NBlist -- [Id]) ++ [Id]),
+    ets:insert(Graph, {IdN, Tpe, NNBlist})
+                end,
+    NeightboardsList
+  ),
   {noreply, State#ambiente_state{id_spwn = maps:put(Id, HB_name, ID_Spwn), comm_spwn = maps:put(Id, Name, Comm)}};
 handle_info(Msg, State = #ambiente_state{}) ->
   io:format("ambiente: messaggio sconosciuto -> ~p.~n", [Msg]),
