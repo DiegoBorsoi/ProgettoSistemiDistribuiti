@@ -210,10 +210,10 @@ listen(State = #hb_state{
           spawn(hb_OUT, init, [{tree_state, HB_name, {Saved_root, Saved_dist, Id}}, [HB_sender]]),
           New_Im_root = Im_root,
           New_is_alive = Root_alive;
-%%        (Saved_root == Id_root) andalso (Saved_dist + 1 < Dist) ->
-%%          spawn(hb_OUT, init, [{tree_state, HB_name, {Saved_root, Saved_dist, Id}}, [HB_sender]]),
-%%          New_Im_root = Im_root,
-%%          New_is_alive = Root_alive;
+        (Saved_root == Id_root) andalso (Saved_dist + 1 < Dist) ->
+          spawn(hb_OUT, init, [{tree_state, HB_name, {Saved_root, Saved_dist, Id}}, [HB_sender]]),
+          New_Im_root = Im_root,
+          New_is_alive = Root_alive;
         (Saved_root > Id_root) andalso (Oldroot =/= Id_root) ->
           % aggiorno lo lo stato dell'albero salvato
           state_server:set_tree_state(Server_name, {Id_root, Dist + 1, Id_sender}),
@@ -258,7 +258,7 @@ listen(State = #hb_state{
       io:format("~p: Ricevuto is_root_alive(~p) da ~p: i'm root (~p).~n", [Id, Id_root_keep_alive, HB_sender, Im_root]),
       {ok, {Id_root, _Dist, _Id_RP}} = state_server:get_tree_state(Server_name),
       if
-        Id_root == Id_root_keep_alive ->
+        (not Im_root) andalso (Id_root == Id_root_keep_alive) ->
           Is_alive = true,
           {ok, Neighbs_hb} = state_server:get_active_neighb_hb(Server_name),
           spawn(hb_OUT, init, [{tree_keep_alive, HB_name, Id_root_keep_alive}, Neighbs_hb -- [HB_sender]]);
