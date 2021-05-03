@@ -1,10 +1,11 @@
 -module(hb_OUT).
 
 %% API
--export([init/2]).
+-export([init/3]).
 
-init(Msg, Neighbs) ->
-  send_to_neighb(Msg, Neighbs).
+init(Server_name, Msg, Neighbs) ->
+  {ok, Ignore_neighbs} = state_server:get_ignored_neighb_hb(Server_name),
+  send_to_neighb(Msg, Neighbs -- Ignore_neighbs).
 
 send_to_neighb(Msg, Neighbs) ->
 %%  io:format("Invio ~p a ~p.~n", [Msg, Neighbs]),

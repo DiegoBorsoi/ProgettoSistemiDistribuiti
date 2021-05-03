@@ -12,7 +12,7 @@
 -export([get_neighb/1, get_neighb_hb/1, add_neighb/2, add_neighbs/2, rm_neighb/2, rm_neighb_with_hb/2, check_neighb/2, get_neighb_map/1]).
 -export([get_tree_state/1, reset_tree_state/1, set_tree_state/2, set_tree_active_port/2, rm_tree_active_port/2]).
 -export([get_active_neighb/1, get_active_neighb_hb/1]).
--export([ignore_neighb/2]).
+-export([ignore_neighb/2, get_ignored_neighb_hb/1]).
 
 -record(server_state, {
   id,
@@ -125,6 +125,10 @@ get_active_neighb_hb(Name) ->
 ignore_neighb(Name, Neighb) ->
   gen_server:cast(Name, {ignore_neighb, Neighb}).
 
+% Esegue una chiamata sincrona per ottenere la lista degli hb dei vicini ignorati (connessione persa)
+get_ignored_neighb_hb(Name) ->
+  gen_server:call(Name, {get_ignored_neighb_hb}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -151,13 +155,14 @@ handle_call({add_neighb, {Node_ID, Node_HB_name}}, _From, State = #server_state{
 handle_call({add_neighbs, Nodes = [_ | _]}, _From, State = #server_state{neighb_table = NT}) ->  % Aggiunge una lista di nodi vicino alla lista salvata nella tabella
   [ets:insert(NT, {Node_ID, Node_HB_name, disable}) || {Node_ID, Node_HB_name} <- Nodes],
   {reply, ok, State};
-handle_call({rm_neighb, Neighb}, _From, State = #server_state{neighb_table = NT}) ->
+handle_call({rm_neighb, Neighb}, _From, State = #server_state{neighb_table = NT, lost_connections = LC}) ->
+  [[Node_hb]] = ets:match(NT, {Neighb ,'$1', '_'}),
   ets:delete(NT, Neighb),
-  {reply, ok, State};
-handle_call({rm_neighb_with_hb, Neighb_hb}, _From, State = #server_state{neighb_table = NT}) ->
+  {reply, ok, State#server_state{lost_connections = LC -- [Node_hb]}};
+handle_call({rm_neighb_with_hb, Neighb_hb}, _From, State = #server_state{neighb_table = NT, lost_connections = LC}) ->
   [[Node_id]] = ets:match(NT, {'$1', Neighb_hb, '_'}),
   ets:delete(NT, Node_id),
-  {reply, ok, State};
+  {reply, ok, State#server_state{lost_connections = LC -- [Neighb_hb]}};
 handle_call({check_neighb, Neighb_hb}, _From, State = #server_state{neighb_table = NT, lost_connections = LC}) ->
   Node_id = ets:match(NT, {'$1', Neighb_hb, '_'}),
   Found = (Node_id =/= []) and (([Neighb_hb] -- LC) =/= []),
@@ -229,6 +234,8 @@ handle_call({get_active_neighb}, _From, State = #server_state{neighb_table = NT}
 handle_call({get_active_neighb_hb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini attivi
   Neighb_hb_list = [Node_HB_name || {_Node_ID, Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable],
   {reply, {ok, Neighb_hb_list}, State};
+handle_call({get_ignored_neighb_hb}, _From, State = #server_state{lost_connections = LC}) ->  % Restituisce la lista dei vicini attivi
+  {reply, {ok, LC}, State};
 handle_call(_Msg, _From, State) ->  % per gestire messaggi syncroni sconosciuti
   io:format("Non sto 'mbriacato~n"),
   {reply, done, State}.

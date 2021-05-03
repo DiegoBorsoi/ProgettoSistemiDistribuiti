@@ -44,13 +44,13 @@ init(Id, Server_name, HB_name) ->
   Neighbs_state = maps:from_list([{Key, alive} || Key <- maps:keys(Neighbs_clocks)]),
 
   % fingo la fine di un timer per dare inizio al protocollo, essendo is_root_alive inizializzato a false
-  self() ! {tree_keep_alive_timer_ended},
+  self() ! {start_tree},
   self() ! {start_echo},
   listen(State#hb_state{neighb_clocks = Neighbs_clocks, neighb_state = Neighbs_state, i_am_root = false, is_root_alive = false, oldroot = undefined}).
 
 % esecuzione del protocollo di annessione di un nuovo nodo alla rete
 enter_network(Neighbs, _State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name}) ->
-  spawn(hb_OUT, init, [{add_new_nd, Id, HB_name}, Neighbs]), % invia un messaggio ad ogni vicino maybe raggiungibile
+  spawn(hb_OUT, init, [Server_name, {add_new_nd, Id, HB_name}, Neighbs]), % invia un messaggio ad ogni vicino maybe raggiungibile
 
   Neighbs_clocks = maps:from_list([{Node, -1} || Node <- Neighbs]),  % crea una mappa per il salvataggio del clock dei vicini
   New_neighbs_clocks = wait_for_all_neighbs(Neighbs_clocks, Server_name),
@@ -85,7 +85,7 @@ check_clock_values(Neighbs_clocks, HB_name, Server_name) ->
       state_server:update_clock(Server_name, Clock)
   end,
   % invia un messaggio ad ogni vicino upd_clk maybe raggiungibile
-  spawn(hb_OUT, init, [{upd_lmp, HB_name, Clock}, maps:keys(maps:filter(fun(_Key, Value) ->
+  spawn(hb_OUT, init, [Server_name, {upd_lmp, HB_name, Clock}, maps:keys(maps:filter(fun(_Key, Value) ->
     Value < Clock end, Neighbs_clocks))]),
   ok.
 
@@ -106,7 +106,7 @@ listen(State = #hb_state{
       % viene create il processo hb_OUT che si occupa di inviare il messaggio di echo_rqs a tutti i vicini
       {ok, Neighbs_hb} = state_server:get_neighb_hb(Server_name),
       Msg = {echo_rqs, HB_name},
-      spawn(hb_OUT, init, [Msg, Neighbs_hb]),
+      spawn(hb_OUT, init, [Server_name, Msg, Neighbs_hb]),
 
       listen(State#hb_state{neighb_state = New_NS});
     {echo_timer_ended} ->
@@ -122,6 +122,7 @@ listen(State = #hb_state{
         Is_RP_dead ->
           % se ho rimosso la mia RP devo fare un {start_tree} appena dopo aver resettato la radice salvata
           state_server:reset_tree_state(Server_name),
+          io:format("~p: Mi è morta la route_port.~n", [Id]),
           self() ! {start_tree};
         true ->
           ok
@@ -172,7 +173,7 @@ listen(State = #hb_state{
       if
         Clock < Clock_sender ->
           state_server:update_clock(Server_name, Clock_sender),
-          spawn(hb_OUT, init, [
+          spawn(hb_OUT, init, [Server_name,
             {upd_lmp, HB_name, Clock_sender},
             maps:to_list(maps:filter(
               fun(Node, Node_clock) -> (Node =/= Id_hb_sender) and (Node_clock < Clock_sender) end,
@@ -191,7 +192,7 @@ listen(State = #hb_state{
       io:format("~p: Sono entrato in start_tree.~n", [Id]),
       {ok, {Id_root, Dist, _ID_RP}} = state_server:get_tree_state(Server_name),
       {ok, Neighbs_hb} = state_server:get_neighb_hb(Server_name),
-      spawn(hb_OUT, init, [{tree_state, HB_name, {Id_root, Dist, Id}}, Neighbs_hb]),
+      spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Id_root, Dist, Id}}, Neighbs_hb]),
       if
         Id_root == Id ->
           New_Im_root = true,
@@ -207,40 +208,41 @@ listen(State = #hb_state{
       Neighbs_hb = maps:values(Neighbs_map),
       if
         Saved_root < Id_root ->
-          spawn(hb_OUT, init, [{tree_state, HB_name, {Saved_root, Saved_dist, Id}}, [HB_sender]]),
+          spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Saved_root, Saved_dist, Id}}, [HB_sender]]),
           New_Im_root = Im_root,
           New_is_alive = Root_alive;
         (Saved_root == Id_root) andalso (Saved_dist + 1 < Dist) ->
-          spawn(hb_OUT, init, [{tree_state, HB_name, {Saved_root, Saved_dist, Id}}, [HB_sender]]),
+          spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Saved_root, Saved_dist, Id}}, [HB_sender]]),
           New_Im_root = Im_root,
           New_is_alive = Root_alive;
-        (Saved_root > Id_root) andalso (Oldroot =/= Id_root) ->
+        (Saved_root > Id_root) -> %andalso (Oldroot =/= Id_root) ->
           % aggiorno lo lo stato dell'albero salvato
           state_server:set_tree_state(Server_name, {Id_root, Dist + 1, Id_sender}),
 % avviso la nuova route port che la uso come tale
-          spawn(hb_OUT, init, [{tree_ack, Id}, [HB_sender]]),
+          spawn(hb_OUT, init, [Server_name, {tree_ack, Id}, [HB_sender]]),
 % avviso la vecchia route port che non la uso più
           if
             Saved_RP == Id ->
               ok;
             true ->
-              spawn(hb_OUT, init, [{tree_rm_rp, Id}, [maps:get(Saved_RP, Neighbs_map)]])
+              spawn(hb_OUT, init, [Server_name, {tree_rm_rp, Id}, [maps:get(Saved_RP, Neighbs_map)]])
           end,
 % avviso i vicini che ho cambiato porta
-          spawn(hb_OUT, init, [{tree_state, HB_name, {Id_root, Dist + 1, Id}}, Neighbs_hb -- [HB_sender]]),
+          spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Id_root, Dist + 1, Id}}, Neighbs_hb -- [HB_sender]]),
           New_Im_root = false,
-          New_is_alive = false;
+          New_is_alive = false,
+          erlang:send_after(4000, self(), {tree_keep_alive_timer_ended, Id_root});
         ((Saved_root == Id_root) andalso (Saved_dist > Dist + 1))
           orelse
           ((Saved_root == Id_root) andalso (Saved_dist == Dist + 1) andalso (Id_sender < Saved_RP)) ->
 % aggiorno lo lo stato dell'albero salvato
           state_server:set_tree_state(Server_name, {Id_root, Dist + 1, Id_sender}),
 % avviso la nuova route port che la uso come tale
-          spawn(hb_OUT, init, [{tree_ack, Id}, [HB_sender]]),
+          spawn(hb_OUT, init, [Server_name, {tree_ack, Id}, [HB_sender]]),
 % avviso la vecchia route port che non la uso più
-          spawn(hb_OUT, init, [{tree_rm_rp, Id}, [maps:get(Saved_RP, Neighbs_map)]]),
+          spawn(hb_OUT, init, [Server_name, {tree_rm_rp, Id}, [maps:get(Saved_RP, Neighbs_map)]]),
 % avviso i vicini che ho cambiato porta
-          spawn(hb_OUT, init, [{tree_state, HB_name, {Id_root, Dist + 1, Id}}, Neighbs_hb -- [HB_sender]]),
+          spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Id_root, Dist + 1, Id}}, Neighbs_hb -- [HB_sender]]),
           New_Im_root = false,
           New_is_alive = Root_alive;
         true ->
@@ -258,44 +260,50 @@ listen(State = #hb_state{
       io:format("~p: Ricevuto is_root_alive(~p) da ~p: i'm root (~p).~n", [Id, Id_root_keep_alive, HB_sender, Im_root]),
       {ok, {Id_root, _Dist, _Id_RP}} = state_server:get_tree_state(Server_name),
       if
-        (not Im_root) andalso (Id_root == Id_root_keep_alive) ->
+%%        (not Im_root) andalso (Id_root == Id_root_keep_alive) ->
+        (Id_root == Id_root_keep_alive) ->
           Is_alive = true,
           {ok, Neighbs_hb} = state_server:get_active_neighb_hb(Server_name),
-          spawn(hb_OUT, init, [{tree_keep_alive, HB_name, Id_root_keep_alive}, Neighbs_hb -- [HB_sender]]);
+          spawn(hb_OUT, init, [Server_name, {tree_keep_alive, HB_name, Id_root_keep_alive}, Neighbs_hb -- [HB_sender]]);
         true ->
           Is_alive = Root_alive
       end,
       listen(State#hb_state{is_root_alive = Is_alive});
-    {tree_keep_alive_timer_ended} -> % controllo se ho ricevuto un messaggio della radice che dice di essere viva
+    {tree_keep_alive_timer_ended, Root_id_timer} -> % controllo se ho ricevuto un messaggio della radice che dice di essere viva
+      {ok, {Saved_root, _, _}} = state_server:get_tree_state(Server_name),
       if
-        Im_root orelse Root_alive ->
+        Im_root orelse (Root_id_timer == Saved_root andalso Root_alive) ->
           Is_alive = false,
+          NOldRoot = Oldroot,
+          erlang:send_after(4000, self(), {tree_keep_alive_timer_ended, Root_id_timer});
+        Root_id_timer =/= Saved_root -> % timer vecchio da eliminare
+          Is_alive = Root_alive,
           NOldRoot = Oldroot;
         true -> % la radice è morta, sono io la nuova radice e lo dico ai vicini
           io:format("~p: La mia radice è morta.~n", [Id]),
-          {ok, {Sor, _, _}} = state_server:get_tree_state(Server_name),
-          NOldRoot = Sor,
+          NOldRoot = Saved_root,
           state_server:reset_tree_state(Server_name),
           self() ! {start_tree},
-          erlang:send_after(6000, self(), {reset_root}),
-          Is_alive = false
+%%          erlang:send_after(6000, self(), {reset_root}),
+          Is_alive = false,
+          erlang:send_after(4000, self(), {tree_keep_alive_timer_ended, Id})
       end,
-      erlang:send_after(4000, self(), {tree_keep_alive_timer_ended}),
       listen(State#hb_state{is_root_alive = Is_alive, oldroot = NOldRoot});
     {tree_root_keep_alive_timer_ended} ->
       if
         Im_root ->
           {ok, Neighbs_hb} = state_server:get_active_neighb_hb(Server_name),
-          spawn(hb_OUT, init, [{tree_keep_alive, HB_name, Id}, Neighbs_hb]),
+          spawn(hb_OUT, init, [Server_name, {tree_keep_alive, HB_name, Id}, Neighbs_hb]),
           erlang:send_after(2000, self(), {tree_root_keep_alive_timer_ended});
         true ->
           ok
       end,
       listen(State);
     {reset_root} ->
+      io:format("~p: Root reset messaggio arrivato.~n", [Id]),
       {ok, {Saved_root, Saved_dist, _Saved_RP}} = state_server:get_tree_state(Server_name),
       {ok, Nhblst} = state_server:get_neighb_hb(Server_name),
-      spawn(hb_OUT, init, [{tree_state, HB_name, {Saved_root, Saved_dist, Id}}, Nhblst]),
+      spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Saved_root, Saved_dist, Id}}, Nhblst]),
       listen(State#hb_state{oldroot = undefined});
     Msg ->
       io:format("~p: Unespected message on HeartBeat: ~p.~n", [Id, Msg]),
