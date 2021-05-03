@@ -114,19 +114,19 @@ listen(State = #hb_state{
       Updated_NS = update_neighbs_state(NS),  % aggiorna lo stato dei vicini in modo da scoprire se qualcuno non ha risposto
       Neighbs_dead = maps:keys(maps:filter(fun(_Key, Value) -> Value == dead end, Updated_NS)), % lista dei vicini morti
 
-      {ok, Neighbs_map} = state_server:get_neighb_map(Server_name), % mappa con elementi {Id_nodo -> HB_nodo}
-      Neighbs_reverse_map = maps:fold(fun(Key, Value, Acc) -> maps:put(Value, Key, Acc) end, maps:new(), Neighbs_map),
-      {ok, {_Root_id, _Dist, Id_RP}} = state_server:get_tree_state(Server_name),
-      Is_RP_dead = lists:any(fun(Node_hb) -> Id_RP == maps:get(Node_hb, Neighbs_reverse_map) end, Neighbs_dead),
-      if
-        Is_RP_dead ->
-          % se ho rimosso la mia RP devo fare un {start_tree} appena dopo aver resettato la radice salvata
-          state_server:reset_tree_state(Server_name),
-          io:format("~p: Mi è morta la route_port.~n", [Id]),
-          self() ! {start_tree};
-        true ->
-          ok
-      end,
+%%      {ok, Neighbs_map} = state_server:get_neighb_map(Server_name), % mappa con elementi {Id_nodo -> HB_nodo}
+%%      Neighbs_reverse_map = maps:fold(fun(Key, Value, Acc) -> maps:put(Value, Key, Acc) end, maps:new(), Neighbs_map),
+%%      {ok, {_Root_id, _Dist, Id_RP}} = state_server:get_tree_state(Server_name),
+%%      Is_RP_dead = lists:any(fun(Node_hb) -> Id_RP == maps:get(Node_hb, Neighbs_reverse_map) end, Neighbs_dead),
+%%      if
+%%        Is_RP_dead ->
+%%          % se ho rimosso la mia RP devo fare un {start_tree} appena dopo aver resettato la radice salvata
+%%          state_server:reset_tree_state(Server_name),
+%%          io:format("~p: Mi è morta la route_port.~n", [Id]),
+%%          self() ! {start_tree};
+%%        true ->
+%%          ok
+%%      end,
 
       [state_server:rm_neighb_with_hb(Server_name, Node) || Node <- Neighbs_dead],  % elimino i morti dalla tabella nello state_server
       {Maybe_alive_NS, Maybe_alive_NC} = removes_dead(Updated_NS, NC, Neighbs_dead),  % elimino i morti dalla mappa dello stato dei vicini
