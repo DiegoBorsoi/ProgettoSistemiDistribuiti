@@ -18,10 +18,12 @@
 %    ,
 %    CONDIZIONI:
 %    {
-%        op      : operazione della condizione (lt, lte, gt, gte, eq, neq)
-%        [vars]  : variabili di stato coinvolte
-%        OR
-%        [{COND}]: **forse lo implementiamo**
+%        COND:
+%            op         : operazione della condizione (lt, lte, gt, gte, eq, neq)
+%            var1, var2 : variabili di stato coinvolte
+%        OR             **forse lo implementiamo**
+%            binop            : {and,or,not}
+%            {COND1}, {COND2} : lista di cond
 %    },
 %    AZIONE:
 %    [ {var,val} ] : che variabile deve essere settata a cosa
@@ -40,10 +42,12 @@
 %    ,
 %    CONDIZIONI:
 %    {
-%        op      : operazione della condizione (lt, lte, gt, gte, eq, neq)
-%        [vars]  : variabili di stato coinvolte
-%        OR
-%        [{COND}]: **forse lo implementiamo**
+%        COND:
+%            op         : operazione della condizione (lt, lte, gt, gte, eq, neq)
+%            var1, var2 : variabili di stato coinvolte
+%        OR             **forse lo implementiamo**
+%            binop            : {and,or,not}
+%            {COND1}, {COND2} : lista di cond
 %    },
 %    AZIONE:
 %    {
@@ -53,7 +57,8 @@
 %        GUARDIE: come condizioni, ma le operazioni sono (lt, lte, gt, gte, eq, neq, itp, ntp)
 %    }
 %}
-
+%
+%esempi:
 [
     {x1,0},
     {x2,0},
@@ -71,18 +76,23 @@
 {
     local,
     [x1,x2,x10],
-    {lt,[x1,10]},
+    {
+        and,
+        {lt,x1,10},
+        {gt,10,22}
+    }
     [
         {x4,7},
         {x30,5}
     ]
 }.
+[] == trigger -- list_events
 {
     global,
     [x1,x2,x10],
     {lt,[x1,10]},
     {
-        {lte,[x1,3]}
+        {lte,x1,3}
         [
             {x4,7},
             {x30,5}
