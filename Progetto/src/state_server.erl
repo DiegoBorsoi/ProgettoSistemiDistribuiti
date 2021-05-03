@@ -182,30 +182,23 @@ handle_call({get_tree_state}, _From, State = #server_state{node_params_table = N
   [[Tree_state]] = ets:match(NpT, {tree_state, '$1'}),
   {reply, {ok, Tree_state}, State};
 handle_call({reset_tree_state}, _From, State = #server_state{id = Id, neighb_table = NT, node_params_table = NpT}) ->
-  [[{_Old_root, _Old_dist, Old_RP}]] = ets:match(NpT, {tree_state, '$1'}),
-  if
-    Old_RP == Id -> ok; % se la RP ero io non faccio nulla
-    true -> % altrimenti imposto lo stato della vecchia RP a disable (era route_port)
-      try
-        [[Old_RP_HB_]] = ets:match(NT, {Old_RP, '$1', '_'}),
-        ets:insert(NT, {Old_RP, Old_RP_HB_, disable})
-      catch
-        _:_ -> ok
-      end
-  end,
+  % resetto gli stati di tutti i vicini
+  ets:foldl(fun({Node_id, Node_hb, _}, _Acc) -> ets:insert(NT, {Node_id, Node_hb, disable}) end, ok, NT),
   ets:insert(NpT, {tree_state, {Id, 0, Id}}),
   {reply, ok, State};
-handle_call({set_tree_state, Tree_state = {_Id_root, _Dist, Id_RP}}, _From, State = #server_state{id = Id, neighb_table = NT, node_params_table = NpT}) ->
-  [[{_Old_root, _Old_dist, Old_RP}]] = ets:match(NpT, {tree_state, '$1'}), % cerco il vecchio stato dell'albero
+handle_call({set_tree_state, Tree_state = {Id_root, _Dist, Id_RP}}, _From, State = #server_state{neighb_table = NT, node_params_table = NpT}) ->
+  [[{Old_root, _Old_dist, Old_RP}]] = ets:match(NpT, {tree_state, '$1'}), % cerco il vecchio stato dell'albero
   if
-    Old_RP == Id -> ok; % se la RP ero io non faccio nulla
-    true -> % altrimenti imposto lo stato della vecchia RP a disable (era route_port)
+    Old_root == Id_root -> % imposto lo stato della vecchia RP a disable (era route_port)
       try
         [[Old_RP_HB_]] = ets:match(NT, {Old_RP, '$1', '_'}),
         ets:insert(NT, {Old_RP, Old_RP_HB_, disable})
       catch
         _:_ -> ok
-      end
+      end;
+    true ->
+      % resetto gli stati di tutti i vicini
+      ets:foldl(fun({Node_id, Node_hb, _}, _Acc) -> ets:insert(NT, {Node_id, Node_hb, disable}) end, ok, NT)
   end,
   ets:insert(NpT, {tree_state, Tree_state}), % aggiorno lo stato dell'albero salvato
   % cerco e aggiorno lo stato della nuova route port

@@ -215,7 +215,7 @@ listen(State = #hb_state{
           spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Saved_root, Saved_dist, Id}}, [HB_sender]]),
           New_Im_root = Im_root,
           New_is_alive = Root_alive;
-        (Saved_root > Id_root) -> %andalso (Oldroot =/= Id_root) ->
+        (Saved_root > Id_root) andalso (Oldroot =/= Id_root) ->
           % aggiorno lo lo stato dell'albero salvato
           state_server:set_tree_state(Server_name, {Id_root, Dist + 1, Id_sender}),
 % avviso la nuova route port che la uso come tale
@@ -284,7 +284,7 @@ listen(State = #hb_state{
           NOldRoot = Saved_root,
           state_server:reset_tree_state(Server_name),
           self() ! {start_tree},
-%%          erlang:send_after(6000, self(), {reset_root}),
+          erlang:send_after(6000, self(), {reset_root}),
           Is_alive = false,
           erlang:send_after(4000, self(), {tree_keep_alive_timer_ended, Id})
       end,
