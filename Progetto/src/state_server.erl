@@ -36,11 +36,8 @@ start_link(Name, _Id, _State_table) ->
 %%% Funzioni usate dai client
 %%%===================================================================
 
-exec_action(Name, [X | _]) ->
-  io:format("Ricevuta lista.~n"),
-  gen_server:call(Name, {exec_action, X}, infinity);
 exec_action(Name, Action) ->
-  gen_server:call(Name, Action, infinity).
+  gen_server:call(Name, {exec_action, Action}, infinity).
 
 
 % Esegue una chiamata sincrona per ricevere la lista di vicini
@@ -138,9 +135,8 @@ init([Id, State_tables]) ->
   {Vars, Rules, Neighb, NodeParams} = State_tables,
   {ok, #server_state{id = Id, vars_table = Vars, rules_table = Rules, neighb_table = Neighb, node_params_table = NodeParams, lost_connections = []}}.
 
-handle_call({exec_action, X, _}, _From, State) ->
-  io:format("Ricevuta call con azione: ~p.~n", [X]),
-  io:format("Stato: ~p~n", [State]),
+handle_call({exec_action, X}, _From, State) ->
+  io:format("State_server - Ricevuta call con azione: ~p.~n", [X]),
   % TODO: modifica lo stato in base all'azione ricevuta
   {reply, done, State};
 handle_call({get_neighb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini salvata nella tabella neighb_table dello stato
@@ -176,7 +172,13 @@ handle_call({get_clock}, _From, State = #server_state{node_params_table = NpT}) 
   [[Clock]] = ets:match(NpT, {clock, '$1'}),
   {reply, {ok, Clock}, State};
 handle_call({update_clock, Clock}, _From, State = #server_state{node_params_table = NpT}) ->
-  ets:insert(NpT, {clock, Clock}),
+  [[Old_clock]] = ets:match(NpT, {clock, '$1'}),
+  if
+    Clock > Old_clock -> % TODO: questa cosa va bene????
+      ets:insert(NpT, {clock, Clock}) ;
+    true ->
+      ok
+  end,
   {reply, ok, State};
 handle_call({get_tree_state}, _From, State = #server_state{node_params_table = NpT}) ->
   [[Tree_state]] = ets:match(NpT, {tree_state, '$1'}),
@@ -229,8 +231,8 @@ handle_call({get_active_neighb_hb}, _From, State = #server_state{neighb_table = 
   {reply, {ok, Neighb_hb_list}, State};
 handle_call({get_ignored_neighb_hb}, _From, State = #server_state{lost_connections = LC}) ->  % Restituisce la lista dei vicini attivi
   {reply, {ok, LC}, State};
-handle_call(_Msg, _From, State) ->  % per gestire messaggi syncroni sconosciuti
-  io:format("Non sto 'mbriacato~n"),
+handle_call(Msg, _From, State) ->  % per gestire messaggi syncroni sconosciuti
+  io:format("Messaggio sconosciuto in handle_call. (Non sto 'mbriacato) : ~p.~n", [Msg]),
   {reply, done, State}.
 
 handle_cast({ignore_neighb, Neighb}, State = #server_state{neighb_table = NT, lost_connections = LC}) ->
