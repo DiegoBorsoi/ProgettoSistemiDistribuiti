@@ -24,7 +24,7 @@ init([Id, Server_name, Rules_worker_name, HB_name]) ->
   SupFlags = #{strategy => one_for_one, intensity => MaxRestart, period => MaxRestartPeriod},
   ChildSpecs = [
     #{id => rules_worker,
-      start => {rules_worker, start_link, [Server_name, Rules_worker_name]},
+      start => {rules_worker, start_link, [Id, Server_name, Rules_worker_name]},
       restart => permanent,
       shutdown => infinity,
       type => worker,

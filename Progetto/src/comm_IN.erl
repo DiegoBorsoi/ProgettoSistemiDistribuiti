@@ -12,8 +12,8 @@ start_link(Id, State_server, Rules_worker) ->
 
 init(Id, State_server, Rules_worker) ->
   register(Id, self()),
-  FloodTable = ets:new(flood_table, [
-    bag,
+  FloodTable = ets:new(flood_table, [ % TODO: mettere un massimo alle tuple salvate
+    set,
     public,
     {keypos, 1},
     {heir, none},
@@ -27,12 +27,17 @@ listen(State = #comm_IN_state{id = Id, server = Server_name, rules_worker = RW, 
   receive
     {flood, Id_sender, Flood_clock, Flood_gen, Action} ->
       io:format("Received: ~p.~n", [Action]),
-      case check_flood_validity(Flood_clock, Flood_gen, FT) of
-        true -> % flood nuovo
-          rules_worker:exec_action(RW, Flood_clock, Action),
-          {ok, Active_neighbs} = state_server:get_active_neighb(Server_name),
-          spawn(comm_OUT, init, [{flood, Id, Flood_clock, Flood_gen, Action}, Active_neighbs -- [Id_sender]]);
-        false ->
+      if
+        (Flood_gen =/= Id) ->
+          case check_flood_validity(Flood_clock, Flood_gen, FT) of
+            true -> % flood nuovo
+              rules_worker:exec_action(RW, Flood_clock, Action),
+              {ok, Active_neighbs} = state_server:get_active_neighb(Server_name),
+              spawn(comm_OUT, init, [{flood, Id, Flood_clock, Flood_gen, Action}, Active_neighbs -- [Id_sender]]);
+            false ->
+              ok
+          end;
+        true ->
           ok
       end,
       listen(State);
@@ -42,7 +47,7 @@ listen(State = #comm_IN_state{id = Id, server = Server_name, rules_worker = RW, 
 
 % controllo se il flood arrivato è già stato visto (false) oppure no (true) e lo salvo nella tabella
 check_flood_validity(Flood_clock, Flood_gen, FT) ->
-  case ets:insert_new(FT, {Flood_clock, Flood_gen}) of
+  case ets:insert_new(FT, {{Flood_clock, Flood_gen}}) of
     false -> % TODO: questa cosa è molto inutile, basta solo chiamare l'insert
       false;
     true ->

@@ -55,7 +55,7 @@ init({Id, Tipo}) ->
 
 create_table(Id, Tipo) ->
   % tabella per il salvataggio delle variabili di stato
-  % {name, Value}
+  % {name, Value, Clock_last_update}
   Vars = ets:new(tabella_vars, [
     set,
     public,
@@ -102,13 +102,12 @@ create_table(Id, Tipo) ->
     {decentralized_counters, false}
   ]),
   ets:insert(NodeParams, [{id, Id}, {clock, -1}, {tipo, Tipo}, {tree_state, {Id, 0, Id}}]),
-  % TODO: leggere da file per aggiungere lo stato iniziale e le regole
   {ok, File} = file:consult(list_to_atom(atom_to_list(Tipo) ++ "_rules.txt")),
   %io:format("File: ~p\n", [File]),
   case File of
     [Vrs | Rls] ->
       lists:foreach(
-        fun(X) -> ets:insert(NodeParams, X) end,
+        fun({Var_name, Var_value}) -> ets:insert(Vars, {Var_name, Var_value, -1}) end,
         Vrs),
       ets:insert(Rules, Rls);
     _ ->
