@@ -150,7 +150,7 @@ handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{va
                      case check_external_guard_vars_clock(Action_clock, Guard, VT) of
                        true -> % ora controllo se la guardia è soddisfatta
                          case check_condition(Guard, VT) of
-                           true -> % infine controllo se l'azione non usa variabili con clock più nuovo
+                           true -> % infine controllo se l'azione non usa variabili con clock più nuovo o uguale
                              check_action_vars_clock(Action_clock, Actions, VT);
                            false ->
                              false
@@ -162,7 +162,6 @@ handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{va
                      io:format("State server - azione non riconosciuta: ~p.~n", [Action]),
                      false
                  end,
-
   Rules = case Valid_action of
             true ->
               {_, Action_list} = Action, % estraggo la lista di azioni
@@ -187,15 +186,41 @@ handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{va
             false ->
               []
           end,
-  
   {reply, {ok, Rules}, State};
-handle_call({exec_action_from_local_rule, Action_clock, Action}, _From, State) ->
-  io:format("State_server - Ricevuta call con azione (da una regola): ~p.~n", [Action]),
-  % TODO: controlla se la guardia è soddisfatta, esegue l'azione se non modifica cose più nuove (uguali vanno bene) e restituisce le regole che si attivano
+handle_call({exec_action_from_local_rule, Action_clock, Action}, _From, State = #server_state{vars_table = VT, rules_table = RT}) ->
+  io:format("State_server - Ricevuta call con azione (da una regola locale): ~p.~n", [Action]),
 
+  Valid_action = case Action of % in questo caso l'azione non avrà mai una guardia, essendo proveniente da una regola locale
+                   Actions when is_list(Actions) ->
+                     % controllo se l'azione non usa variabili con clock più nuovo
+                     check_rules_action_vars_clock(Action_clock, Actions, VT);
+                   _ ->
+                     io:format("State server - azione locale non riconosciuta: ~p.~n", [Action]),
+                     false
+                 end,
+  Rules = case Valid_action of
+            true ->
+              lists:foreach(fun({Var, New_value}) ->
+                ets:insert(VT, {Var, New_value, Action_clock}) end, Action), % eseguo le azioni
 
-  % esempio risposta
-  Rules = [{local, Action_clock, {lt, x2, 10}, [{x3, 6}, {x4, 7}]}, {global, Action_clock, {lt, x2, 10}, {{gt, x3, 8}, [{x4, 7}]}}],
+              % la lista dei trigger equivale alle variabili che compaiono nella lista di azioni
+              Trigger = [Var || {Var, _Value} <- Action],
+
+              % cerco le regole triggerate da quest'azione
+              ets:foldl(
+                fun(Elem = {_, Elem_trigger, _, _}, Acc) ->
+                  case Elem_trigger -- Trigger of
+                    [] ->
+                      [Elem | Acc];
+                    _ ->
+                      Acc
+                  end
+                end,
+                [],
+                RT);
+            false ->
+              []
+          end,
   {reply, {ok, Rules}, State};
 handle_call({check_rule_cond, Rule_clock, Cond}, _From, State = #server_state{vars_table = VT}) ->
   % inizialmente viene controllato se le variabili usate non siano state modificate da clock maggiori
@@ -241,7 +266,7 @@ handle_call({get_clock}, _From, State = #server_state{node_params_table = NpT}) 
 handle_call({update_clock, Clock}, _From, State = #server_state{node_params_table = NpT}) ->
   [[Old_clock]] = ets:match(NpT, {clock, '$1'}),
   if
-    Clock > Old_clock -> % TODO: questa cosa va bene????
+    Clock > Old_clock -> % questa cosa va bene? si
       ets:insert(NpT, {clock, Clock});
     true ->
       ok
@@ -333,6 +358,8 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+% TODO: unire le due funzioni
+
 % controlla se le variabili all'interno della guardia non sono state modificate dopo Action_clock
 check_external_guard_vars_clock(Action_clock, Guard, VT) ->
   case Guard of
@@ -421,6 +448,7 @@ check_cond_vars_clock(Rule_clock, Cond, VT) ->
       false
   end.
 
+% controlla se le variabili che verrebbero modificate dalle azioni non siano già state modificate da azioni più nuove o uguali
 check_action_vars_clock(Action_clock, Action_list, VT) ->
   lists:foldl(fun({Var, _New_value}, Acc) ->
     case ets:lookup(VT, Var) of
@@ -433,6 +461,21 @@ check_action_vars_clock(Action_clock, Action_list, VT) ->
     true,
     Action_list).
 
+
+% controlla se le variabili verrebbero modificate dalle azioni non siano già state modificate da azioni più nuove
+check_rules_action_vars_clock(Action_clock, Action_list, VT) ->
+  lists:foldl(fun({Var, _New_value}, Acc) ->
+    case ets:lookup(VT, Var) of
+      [{Var, _Value, Clock}] ->
+        (Action_clock >= Clock) andalso Acc;
+      [] ->
+        false
+    end
+              end,
+    true,
+    Action_list).
+
+% esegue la condizione per ottenerne il risultato
 check_condition(Cond, VT) ->
   case Cond of
     {Op, Var1, Var2} -> % operazioni di arità 2: lt, lte, gt, gte, eq, neq
