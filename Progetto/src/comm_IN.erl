@@ -48,7 +48,7 @@ listen(State = #comm_IN_state{id = Id, server = Server_name, rules_worker = RW, 
 % controllo se il flood arrivato è già stato visto (false) oppure no (true) e lo salvo nella tabella
 check_flood_validity(Flood_clock, Flood_gen, FT) ->
   case ets:insert_new(FT, {{Flood_clock, Flood_gen}}) of
-    false -> % TODO: questa cosa è molto inutile, basta solo chiamare l'insert
+    false -> % questa cosa è molto inutile, basta solo chiamare l'insert
       false;
     true ->
       true

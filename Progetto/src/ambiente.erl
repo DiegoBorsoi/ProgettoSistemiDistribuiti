@@ -58,7 +58,6 @@ init([GraphFile]) ->
   ]),
   ets:insert(Graph, GraphList),
   process_flag(trap_exit, true),
-  % TODO: rendere consistente il grafo (lista dei vicini di ogni nodo)
   {ok, #ambiente_state{graph = Graph, id_spwn = maps:new(), comm_spwn = maps:new(), id_sup_node = maps:new()}}.
 
 
@@ -120,6 +119,7 @@ handle_info({nodo_avviato, Name, {Id, HB_name}}, State = #ambiente_state{graph =
   [[NeightboardsList]] = ets:match(Graph, {Id, '_', '$1'}),
   NBL = [{Node, maps:get(Node, ID_Spwn)} || Node <- NeightboardsList, maps:is_key(Node, ID_Spwn)],
   Name ! {discover_neighbs, NBL},
+  % controllo della constistenza del grafo
   lists:foreach(fun(Node) ->
     [{IdN, Tpe, NBlist}] = ets:lookup(Graph, Node),
     NNBlist = ((NBlist -- [Id]) ++ [Id]),

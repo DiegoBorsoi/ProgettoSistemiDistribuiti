@@ -35,12 +35,12 @@ init([Id, Server_name, Rules_worker_name, HB_name]) ->
       shutdown => infinity,
       type => worker,
       modules => [comm_IN]},
-    #{id => hb_sup,
-      start => {hb_sup, start_link, [Id, Server_name, HB_name]},
+    #{id => hb_IN,
+      start => {hb_IN, start_link, [Id, Server_name, HB_name]},
       restart => permanent,
       shutdown => infinity,
-      type => supervisor,
-      modules => [hb_sup]}
+      type => worker,
+      modules => [hb_IN]}
   ],
   {ok, {SupFlags, ChildSpecs}}.
 
