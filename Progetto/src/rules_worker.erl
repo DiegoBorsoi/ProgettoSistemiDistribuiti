@@ -8,14 +8,15 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% client functions
--export([exec_action/3]).
+-export([exec_action/4]).
 
 -record(rules_worker_state, {
   id,
   state_server,
   priority_queue = queue:new(),
   action_queue = queue:new(),
-  on_timer_hold = []
+  on_timer_hold = [],
+  transaction_state = {none}
 }).
 
 %%%===================================================================
@@ -29,8 +30,8 @@ start_link(Id, Server_name, Rules_worker_name) ->
 %%% Funzioni usate dai client
 %%%===================================================================
 
-exec_action(Name, Clock, Action) ->
-  gen_server:cast(Name, {exec_action, Clock, Action}).
+exec_action(Name, Type, Clock, Action) ->
+  gen_server:cast(Name, {exec_action, Type, Clock, Action}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -42,15 +43,15 @@ init([Id, Server_name]) ->
 handle_call(_Request, _From, State = #rules_worker_state{}) ->
   {reply, ok, State}.
 
-handle_cast({exec_action, Action_clock, Action}, State = #rules_worker_state{state_server = Server, priority_queue = PQ, action_queue = AQ, on_timer_hold = OTH}) ->
+handle_cast({exec_action, Type, Action_clock, Action}, State = #rules_worker_state{state_server = Server, priority_queue = PQ, action_queue = AQ, on_timer_hold = OTH}) ->
   io:format("Rules worker - Ricevuta azione: ~p.~n", [Action]),
   {ok, Clock} = state_server:get_clock(Server),
   if
     Action_clock > (Clock + 1) ->
       % se il valore di clock non è quello che mi aspetto,
       % allora aspetto un timer per dare la possibilità al flood con il giusto clock di arrivare
-      erlang:send_after(1000, self(), {timer_flood_too_high_ended, Action_clock, Action}),
-      New_OTH = [{Action_clock, Action} | OTH],
+      erlang:send_after(1000, self(), {timer_flood_too_high_ended, Type, Action_clock, Action}),
+      New_OTH = [{Type, Action_clock, Action} | OTH],
       New_AQ = AQ;
     true ->
       if % se l'azione ha il clock che mi stavo aspettando, aggiorno il clock salvato
@@ -66,7 +67,7 @@ handle_cast({exec_action, Action_clock, Action}, State = #rules_worker_state{sta
           ok
       end,
       New_OTH = OTH,
-      New_AQ = queue:in({Action_clock, Action}, AQ)
+      New_AQ = queue:in({Type, Action_clock, Action}, AQ)
   end,
   {noreply, State#rules_worker_state{action_queue = New_AQ, on_timer_hold = New_OTH}};
 handle_cast(_Request, State = #rules_worker_state{}) ->
@@ -106,7 +107,24 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
              {noreply, State#rules_worker_state{priority_queue = New_PQ}};
            {empty, _} -> % la priority queue è vuota, quindi passo alla coda di azioni ricevute tramite comm_IN
              case queue:out(AQ) of % estraggo il primo elemento della queue e lo eseguo
-               {{value, {Action_clock, Action}}, New_AQ} ->
+               {{value, {{transaction_rqs, Id_gen}, Action_clock, Action}}, New_AQ} -> % gestione di un messaggio di transact_rqs
+                 io:format("Ricevuta transaction_start.~n"),
+
+                 % controllo se la guardia è valida e soddisfatta e se le azioni sono valide
+                 New_transaction_state = case state_server:check_trans_guard(Server, Action_clock, Action) of
+                                           true ->
+                                             % invia la risposta di partecipazione alla transazione
+                                             {ok, Active_neighbs} = state_server:get_active_neighb(Server),
+                                             spawn(comm_OUT, init, [{transact_req_ack, Id, Action_clock, Id_gen}, Active_neighbs]),
+                                             % faccio partire un timer per uscire dalla transazione dopo x secondi
+                                             erlang:send_after(3000, self(), {transact_timeout_ended, Id_gen, Action_clock}),
+                                             {responding, Id_gen, Action_clock};
+                                           false ->
+                                             {none}
+                                         end,
+
+                 {noreply, State#rules_worker_state{action_queue = New_AQ, transaction_state = New_transaction_state}};
+               {{value, {normal, Action_clock, Action}}, New_AQ} -> % gestione di un'azione normale
                  % invio al server l'azione da eseguire, e ricevo in risposta le regole triggerate
                  {ok, Triggered_rules} = state_server:exec_action(Server, Action_clock, Action),
                  New_PQ = lists:foldl(fun(Elem, Q) -> queue:in(Elem, Q) end, queue:new(), Triggered_rules),
@@ -130,9 +148,9 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
       self() ! {handle_next_action}
   end,
   Risp;
-handle_info({timer_flood_too_high_ended, Action_clock, Action}, State = #rules_worker_state{state_server = Server, action_queue = AQ, on_timer_hold = OTH}) ->
+handle_info({timer_flood_too_high_ended, Type, Action_clock, Action}, State = #rules_worker_state{state_server = Server, action_queue = AQ, on_timer_hold = OTH}) ->
   % nel momento in cui il timer finisce controllo se l'azione è stata già eseguita oppure no
-  case [{Action_clock, Action}] -- OTH of
+  case [{Type, Action_clock, Action}] -- OTH of
     [] -> % l'azione non è ancora stata effettuata, quindi la eseguo
       case queue:len(AQ) of
         0 -> % se la coda era vuota, vuol dire che devo dirmi di iniziare ad eseguire le azioni salvate in AQ
@@ -141,11 +159,20 @@ handle_info({timer_flood_too_high_ended, Action_clock, Action}, State = #rules_w
           ok
       end,
       state_server:update_clock(Server, Action_clock),
-      New_AQ = queue:in({Action_clock, Action}, AQ),
-      {noreply, State#rules_worker_state{action_queue = New_AQ, on_timer_hold = OTH -- [{Action_clock, Action}]}};
+      New_AQ = queue:in({Type, Action_clock, Action}, AQ),
+      {noreply, State#rules_worker_state{action_queue = New_AQ, on_timer_hold = OTH -- [{Type, Action_clock, Action}]}};
     _ -> % caso in cui l'azione è stata eseguita prima che il timer finisse
       {noreply, State}
   end;
+handle_info({transact_timeout_ended, Id_gen, Action_clock}, State = #rules_worker_state{transaction_state = TS}) ->
+  case TS of
+    {responding, Id_saved, Clock_saved} when (Id_saved == Id_gen) andalso (Clock_saved == Action_clock) ->
+      % nel caso in cui il timer finisce e sto ancora aspettando --> esco dalla transazione
+      {noreply, State#rules_worker_state{transaction_state = {none}}};
+    _ -> % altrimenti non fare nulla
+      {noreply, State}
+  end,
+  {noreply, State};
 handle_info(_Info, State = #rules_worker_state{}) ->
   {noreply, State}.
 

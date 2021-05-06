@@ -26,12 +26,12 @@ init(Id, State_server, Rules_worker) ->
 listen(State = #comm_IN_state{id = Id, server = Server_name, rules_worker = RW, flood_table = FT}) ->
   receive
     {flood, Id_sender, Flood_clock, Flood_gen, Action} ->
-      io:format("Received: ~p.~n", [Action]),
+      io:format("~p : Received: ~p.~n", [Id, Action]),
       if
         (Flood_gen =/= Id) ->
-          case check_flood_validity(Flood_clock, Flood_gen, FT) of
+          case check_flood_validity(flood, Flood_clock, Flood_gen, FT) of
             true -> % flood nuovo
-              rules_worker:exec_action(RW, Flood_clock, Action),
+              rules_worker:exec_action(RW, normal, Flood_clock, Action),
               {ok, Active_neighbs} = state_server:get_active_neighb(Server_name),
               spawn(comm_OUT, init, [{flood, Id, Flood_clock, Flood_gen, Action}, Active_neighbs -- [Id_sender]]);
             false ->
@@ -41,13 +41,36 @@ listen(State = #comm_IN_state{id = Id, server = Server_name, rules_worker = RW, 
           ok
       end,
       listen(State);
-    _ ->
-      io:format("Unespected message.~n")
+    {transact_rqs, Id_sender, Trans_clock, Trans_id_gen, Action} ->
+      io:format("~p : Received transaction request: ~p.~n", [Id, Action]),
+      if
+        (Trans_id_gen =/= Id) ->
+          case check_flood_validity(transaction, Trans_clock, Trans_id_gen, FT) of
+            true -> % nuova transazione
+              rules_worker:exec_action(RW, {transaction_rqs, Trans_id_gen}, Trans_clock, Action),
+              {ok, Active_neighbs} = state_server:get_active_neighb(Server_name),
+              spawn(comm_OUT, init, [{transact_rqs, Id, Trans_clock, Trans_id_gen, Action}, Active_neighbs -- [Id_sender]]);
+            false ->
+              ok
+          end;
+        true ->
+          ok
+      end,
+      listen(State);
+    {transact_req_ack, Id_sender, Action_clock, Id_gen} ->
+      io:format("~p : Received transaction req ack: ~p.~n", [Id, {Action_clock, Id_gen}]),
+      listen(State);
+    {transact_start, Id_sender, Action_clock, Id_gen, Partecipants} ->
+      io:format("~p : Received transaction start: ~p.~n", [Id, {Action_clock, Id_gen, Partecipants}]),
+      listen(State);
+    Msg ->
+      io:format("~p : Unespected message: ~p.~n", [Id, Msg]),
+      listen(State)
   end.
 
 % controllo se il flood arrivato è già stato visto (false) oppure no (true) e lo salvo nella tabella
-check_flood_validity(Flood_clock, Flood_gen, FT) ->
-  case ets:insert_new(FT, {{Flood_clock, Flood_gen}}) of
+check_flood_validity(Type, Flood_clock, Flood_gen, FT) ->
+  case ets:insert_new(FT, {{Type, Flood_clock, Flood_gen}}) of
     false -> % questa cosa è molto inutile, basta solo chiamare l'insert
       false;
     true ->

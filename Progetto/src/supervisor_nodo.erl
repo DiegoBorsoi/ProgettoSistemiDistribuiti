@@ -102,8 +102,7 @@ create_table(Id, Tipo) ->
     {decentralized_counters, false}
   ]),
   ets:insert(NodeParams, [{id, Id}, {clock, -1}, {tipo, Tipo}, {tree_state, {Id, 0, Id}}]),
-  {ok, File} = file:consult(list_to_atom(atom_to_list(Tipo) ++ "_rules.txt")),
-  %io:format("File: ~p\n", [File]),
+  {ok, File} = file:consult(list_to_atom(atom_to_list(Tipo) ++ "_rules.txt")), % TODO: controllare se il tipo è giusto
   case File of
     [Vrs | Rls] ->
       lists:foreach(

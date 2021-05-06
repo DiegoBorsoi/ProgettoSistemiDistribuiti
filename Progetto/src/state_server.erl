@@ -8,7 +8,8 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% client functions
--export([exec_action/3, exec_action_from_local_rule/3, check_rule_cond/3, update_clock/2, get_clock/1, get_rules/1]).
+-export([exec_action/3, exec_action_from_local_rule/3, check_rule_cond/3, check_trans_guard/3]).
+-export([update_clock/2, get_clock/1, get_rules/1]).
 -export([get_neighb/1, get_neighb_hb/1, add_neighb/2, add_neighbs/2, rm_neighb/2, rm_neighb_with_hb/2, check_neighb/2, get_neighb_map/1]).
 -export([get_tree_state/1, reset_tree_state/1, set_tree_state/2, set_tree_active_port/2, rm_tree_active_port/2]).
 -export([get_active_neighb/1, get_active_neighb_hb/1]).
@@ -44,6 +45,9 @@ exec_action_from_local_rule(Name, Action_clock, Action) ->
 
 check_rule_cond(Name, Rule_clock, Cond) ->
   gen_server:call(Name, {check_rule_cond, Rule_clock, Cond}).
+
+check_trans_guard(Name, Trans_clock, Action) ->
+  gen_server:call(Name, {check_trans_guard, Trans_clock, Action}).
 
 
 % Esegue una chiamata sincrona per ricevere la lista di vicini
@@ -141,7 +145,7 @@ init([Id, State_tables]) ->
   {Vars, Rules, Neighb, NodeParams} = State_tables,
   {ok, #server_state{id = Id, vars_table = Vars, rules_table = Rules, neighb_table = Neighb, node_params_table = NodeParams, lost_connections = []}}.
 
-handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{vars_table = VT, rules_table = RT}) ->
+handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{vars_table = VT, rules_table = RT, node_params_table = PT}) ->
   io:format("State_server - Ricevuta call con azione: ~p.~n", [Action]),
 
   Valid_action = case Action of % in questo caso l'azione avrà sempre una guardia, essendo arrivante da comm_IN
@@ -149,7 +153,7 @@ handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{va
                      % controllo se le variabili in guard hanno un clock adeguato
                      case check_external_guard_vars_clock(Action_clock, Guard, VT) of
                        true -> % ora controllo se la guardia è soddisfatta
-                         case check_condition(Guard, VT) of
+                         case check_condition(Guard, VT, PT) of
                            true -> % infine controllo se l'azione non usa variabili con clock più nuovo o uguale
                              check_action_vars_clock(Action_clock, Actions, VT);
                            false ->
@@ -222,15 +226,29 @@ handle_call({exec_action_from_local_rule, Action_clock, Action}, _From, State = 
               []
           end,
   {reply, {ok, Rules}, State};
-handle_call({check_rule_cond, Rule_clock, Cond}, _From, State = #server_state{vars_table = VT}) ->
+handle_call({check_rule_cond, Rule_clock, Cond}, _From, State = #server_state{vars_table = VT, node_params_table = PT}) ->
   % inizialmente viene controllato se le variabili usate non siano state modificate da clock maggiori
-  case check_cond_vars_clock(Rule_clock, Cond, VT) of
-    true -> % a questo punto controllo se la condizione è soddisfatta
-      Ris = check_condition(Cond, VT);
-    false ->
-      Ris = false
-  end,
+  Ris = case check_cond_vars_clock(Rule_clock, Cond, VT) of
+          true -> % a questo punto controllo se la condizione è soddisfatta
+            check_condition(Cond, VT, PT);
+          false ->
+            false
+        end,
   {reply, {ok, Ris}, State};
+handle_call({check_trans_guard, Trans_clock, Action}, _From, State = #server_state{vars_table = VT, node_params_table = PT}) ->
+  % controllo se la guardia della transazione è valida e soffisfatta
+  {Guard, Action_list} = Action,
+  % controllo se le variabili usate nella guardia non siano state modificate da azioni con clock uguale o maggiore
+  Ris_guard = case check_external_guard_vars_clock(Trans_clock, Guard, VT) of
+                true -> % controllo la guardia per vedere se è soddisfatta
+                  check_condition(Guard, VT, PT);
+                false ->
+                  false
+              end,
+  % controllo che le azioni siano attuabili
+  Ris_actions = check_action_vars_clock(Trans_clock, Action_list, VT),
+
+  {reply, {ok, Ris_guard andalso Ris_actions}, State};
 handle_call({get_neighb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini salvata nella tabella neighb_table dello stato
   Neighb_list = [Node_ID || {Node_ID, _Node_HB_name, _State} <- ets:tab2list(NT)],
   {reply, {ok, Neighb_list}, State};
@@ -476,7 +494,7 @@ check_rules_action_vars_clock(Action_clock, Action_list, VT) ->
     Action_list).
 
 % esegue la condizione per ottenerne il risultato
-check_condition(Cond, VT) ->
+check_condition(Cond, VT, PT) ->
   case Cond of
     {Op, Var1, Var2} -> % operazioni di arità 2: lt, lte, gt, gte, eq, neq
       % nel caso in cui le variabili siano atomi (quindi vere e proprie variabili) devo ottenere il valore corrispondente
