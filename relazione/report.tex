@@ -2,6 +2,7 @@
 \usepackage{lmodern}
 \usepackage[utf8]{inputenc}
 \usepackage[italian]{babel}
+\usepackage{float}
 \usepackage{amsmath}
 \usepackage{graphicx}
 
@@ -10,10 +11,10 @@
 %\title{How to write a Report\\ for the Project of Distributed Systems}
 \title{Progetto di Sistemi Distribuiti}
 
-\author{Dott. Diego Borsoi\\Dott. Filippo Callegari\\ DMIF, University of Udine,
-	   Italy}
+\author{Dott. Borsoi Diego\\Dott. Callegari Filippo\\ DMIF, University of Udine,
+	   Italy\\(also the authors are distributed)}
 
-\date{Version 0.1, \today}
+\date{Version $\frac{1}{4}$, \today}
 
 \begin{document}
 
@@ -89,14 +90,16 @@ Di seguito sono descritte le trasparenze che concergono e sono implementate dal 
 
 Il sistema implementa solamente due algoritmi:
 \begin{itemize}
-\item \textbf{Flooding Algorithm:} viene usato per la comunicazione di un'azione
-	   a tutta la rete nel momento in cui in un nodo una regola globale viene attivata.
+\item \textbf{Flooding Algorithm:} viene usato inizialmente per la comunicazione di un'azione
+	   a tutta la rete nel momento in cui in un nodo una regola globale o di transazione viene attivata.
 \item \textbf{Lamport clock (modificato):} viene utilizzata una versione modificata
 	   del Lamport clock per identificare i vari $flood$ eseguiti; questo clock viene
 	   incrementato
 	   solamente dall'invio (o ricezione) di un messasggio, e non dalle azioni interne
-	   ad
-	   un nodo.
+	   ad un nodo;
+\item \textbf{Distributed Spanning Tree:} viene usato per ridurre il traffico di rete 
+       quando la rete si è ``stabilizzata". Questo algoritmo mira a creare un albero di
+       copertura nella rete.
 \end{itemize}
 
 Il sistema non implementa particolari algoritmi essendo che si vuole realizzare una
@@ -163,11 +166,13 @@ I requisiti funzionali individuati sono:
 \item \textbf{Modifica delle regole di un nodo:} ogni tipo di nodo può avere le
 	   sue regole, codificabili attraverso la programmazione dello stesso;
 \item \textbf{Modifica dello stato di un nodo:} ogni evento permette di avere o degli
-	   \textit{effetti locali} o degli \textit{effetti globali}:
+	   \textit{effetti locali}, degli \textit{effetti globali} o degli \textit{effetti transizionali}:
 	\begin{itemize}
 	\item \textit{\textbf{effetti locali}}: la regola va a modificare lo stato interno;
 	\item \textit{\textbf{effetti globali}}: la regola può modificare lo stato delle
 	   variabili interne, e può generare un evento sugli altri nodi;
+	\item \textit{\textbf{effetti transizionali}}: regola simile a quelle globali, ma con la differenza
+	   che l'esecuzione avverrà in tutti i nodi coinvolti ``contemporaneamente";
 	\end{itemize}
 \item \textbf{Aggiunta dinamica di un nodo:} un nodo può essere aggiunto alla rete
 	   in qualsiasi momento senza perturbarne la dinamicità, limitando l'aggiornamento
@@ -180,8 +185,7 @@ I requisiti funzionali individuati sono:
 	   nello stato di un nodo, viene eseguito un controllo delle regole, per vedere
 	   se gli
 	   eventi generati possano attivare una o più regole del nodo; nel caso in cui
-	   una
-	   regola venga attivata, in base al tipo (locale o globale) viene portata a termine
+	   una regola venga attivata, in base al tipo (locale, globale o transazione) viene portata a termine
 	   l'azione corrispondente.
 \end{itemize}
 
@@ -235,8 +239,8 @@ In questo capitolo vengono descritti in modo più approfondito l'achitettura del
 Essendo tutti i nodi costruiti al medesimo modo, di seguito presentiamo la struttura
 	   di uno singolo di essi. 
 
-\begin{figure}[h]
-\makebox[\linewidth][c]{\includegraphics[scale=0.6]{draw_nodeworker.pdf}}
+\begin{figure}[H]
+\makebox[\linewidth][c]{\includegraphics[scale=0.65]{draw_nodeworker.pdf}}
 %\includegraphics[scale=0.6]{draw_nodeworker.pdf}
 %\centering
 \caption{Struttura gerarchica dei moduli di un nodo e visualizzazione delle connessioni
@@ -267,8 +271,10 @@ Come si può vedere dalla figura \ref{img:struttura_nodo}, ogni nodo è formato 
 	\item \textbf{Supervisor dei workers:} modulo che si occupa di gestire i moduli
 	   a lui dipendenti, riavviandoli in caso di ``crash". Questi sono:
 		\begin{itemize}
-		\item \textbf{heartbeat sense:} si occupa di controllare la ``vitalità" dei vicini
-	   e di istanziare le connessioni con essi;
+		\item \textbf{heartbeat sense:} si occupa di controllare la ``vitalità" dei vicini,
+	     di istanziare le connessioni con essi e di mantenere la ``spanning tree" della rete.
+	     Ogni qual volta che deve comunicare con dei vicini affini, creerà un processo effimero
+	     (HB\_out);
 		\item \textbf{communication in:} si occupa di gestire tutti i messaggi in ingresso
 	   relativi al nodo in questione;
 		\item \textbf{rules worker:} si occupa di applicare le azioni ricevute dai nodi
@@ -316,26 +322,28 @@ Nel momento in cui il sistema riceve un'azione da eseguire (dopo aver controllat
 \end{enumerate}
 
 \subsection{Heartbeat}\label{heartbeat}
-L'algoritmo di ``heartbeat'' serve per mantenere consistente lo stato dei vicini
+Il protocollo di ``heartbeat'' serve per mantenere consistente lo stato dei vicini
 	   di un nodo. Questo infatti controlla la loro vitalità e sarà componente chiave
 	   per l'aggiunta di un nuovo nodo.
 
-L'algoritmo si suddivide quindi in due componenti:
+L'algoritmo si suddivide quindi in tre componenti:
 \begin{itemize}
 	\item \textit{ECHO}: similmente al protocollo ICMP, si fa una richiesta di echo
 	   al vicino. Se questa ``\textit{ECHO\_RQS}" andrà a buon fine, il primo nodo che
 	   istanzia una richiesta di ``\textit{ECHO}" richeverà un pacchetto di ``\textit{ECHO\_RPL}".
 	   Definiamo come $\tau$ il tempo che intercorre tra un messaggio di \textit{ECHO} ed
 	   un'altro. Se un nodo non rispondesse entro $2\tau$ ad una \textit{ECHO\_RQS}, questo
-	   verrà considerato come non più collegato. Ogni \textit{ECHO\_RPL} conterrà il ``Lamport"
+	   verrà considerato come non più collegato. Ogni \textit{ECHO\_RPL} conterrà il clock
 	   attuale del vicino.
 	\item \textit{ADD\_NEW\_ND}: similmente al protocollo DHCP, nella fase di aggiunta
 	   di un nodo alla rete, il nuovo nodo si annuncia al suo vicino ``fisico'', chiedendo
 	   le informazioni essenziali per poter partecipare attivamente alla rete. Questo sarà
 	   spiegato più in dettaglio nella prossima sezione.
+	\item \textit{TREE\_STATE}: questa componente si focalizza sulla gestione dell'albero di copertura della rete.
+	Sarà analizzato in dettaglio nei paragrafi successivi.
 \end{itemize}
 
-\begin{figure}[h]
+\begin{figure}[H]
 \centering
 \includegraphics{HeartbeatDiagram.pdf}
 \caption{Sequence diagram dei messagi usati per il sistema di \textit{heartbeat}.}
@@ -353,32 +361,54 @@ L'aggiunta di un nuovo nodo si compone dei seguenti passi:
 	\item \textit{ADD\_NEW\_ND}: il nuovo nodo manda la richiesta di aggiunta alla rete
 	   a tutti i suoi vicini inviando il proprio id;
 	\item \textit{ADD\_NEW\_NB}: il nodo che deve aggiungere il nuovo nodo risponde
-	   con un messaggio contenente $(lamport,id)$.
+	   con un messaggio contenente $(clock,id)$.
 \end{enumerate}
-A questo punto, una volta che per ogni vicino ho i suoi parametri di lamport, i casi
+A questo punto, una volta che per ogni vicino ho i suoi parametri di clock, i casi
 	   possibili sono 2:
 \begin{enumerate}
-	\item \textbf{tutti i nodi hanno medesimo lamport:} imposto il mio lamport al lamport
+	\item \textbf{tutti i nodi hanno medesimo clock:} imposto il mio clock al clock
 	   comune;
-	\item \textbf{esiste un lamport massimo:} imposto il mio lamport al valore massimo,
-	   e rispondo con \textit{UPD\_LMP} a tutti i miei vicini che non hanno il lamport al
-	   massimo. Questi a loro volta manderanno a tutti i loro vicini, con lamport diverso
+	\item \textbf{esiste un clock massimo:} imposto il mio clock al valore massimo,
+	   e rispondo con \textit{UPD\_LMP} a tutti i miei vicini che non hanno il clock al
+	   massimo. Questi a loro volta manderanno a tutti i loro vicini, con clock diverso
 	   da quello scelto, il nuovo valore.
 \end{enumerate}
 
-\begin{figure}[h]
+\begin{figure}[H]
 \makebox[\linewidth][c]{\includegraphics[scale=0.9]{NewNodeDiagram.pdf}}
 \caption{Sequence diagram dei messagi usati per laggiunta di un nuovo nodo alla rete.}
 \label{img:newnode}
 \end{figure}
 
+\subsection{Two-phases Rules (Transazioni)}
+Questo è un protocollo definito come ``two-phases commit", ovvero permette l'esecuzione in
+contemporanea su più parti di almeno un'azione. Questo protocollo è stato modificato rispetto
+l'originale, in quanto, non avendo l'obbligo di avere sempre uno stato consistente tra i nodi,
+ci permette di semplificarlo. Le fasi sono quindi le seguenti:
+\begin{enumerate}
+    \item \textit{discovery}: troviamo tutti i nodi nella rete che sono interessati ad eseguire la
+    transazione. Il nodo inizializzatore manda nella rete un messaggio di richiesta di transazione,
+    il quale contiene delle condizioni per partecipare. Se un nodo è interessato, risponderà all'inizializzatore
+    dicendogli di essere interessato.
+    \item \textit{start}: il nodo inizializzatore darà inizio alla transazione per i nodi interessati.
+\end{enumerate}
+All'interno di questo protocollo, come possiamo vedere nell'immagine \ref{img:transazioni}, vengono tenuti dei timeout
+di controllo, al fine di non rimanere bloccato nello stato di transizione: se un nodo decide di partecipare 
+alla transazione, allora non potrà eseguire altre regole.
+
+\begin{figure}[H]
+\makebox[\linewidth][c]{\includegraphics[scale=0.9]{Transaction_diagram.pdf}}
+\caption{Sequence diagram del protocollo adottato per le regole di transaction.}
+\label{img:transazioni}
+\end{figure}
+
 \subsection{Algoritmo: Flooding}
 Ogni qual volta si crea una regola che genera un evento "globale", ogni nodo spedirà
 	   ai suoi vicini un messaggio contenenta un'azione da eseguire. Questi, una volta ricevuto,
-	   aggiorneranno il loro "wave count" (tenuto dal Lamport modificato, spiegato successivamente),
+	   aggiorneranno il loro "wave count" (tenuto dal clock, spiegato successivamente),
 	   e passerà all'esecuzione dell'istruzione condizionata contenuto nel messaggio. Al
 	   fine di evitar la presenza di messaggi vecchi nella rete, ogni messaggio conterrà
-	   la coppia $(lamport,id\_gen)$: questo verrà salvato localmente nel nodo ricevente,
+	   la coppia $(clock,id\_gen)$: questo verrà salvato localmente nel nodo ricevente,
 	   e verrà mantenuto in memoria al fine di verificare se un messaggio ricevuto non
 	   è già stato eseguito. Ogni nodo quindi spedirà una copia del messaggio a tutti
 	   i suoi vicini (a patto non l'abbia già ricevuto in passato), meno a quello da cui
@@ -386,7 +416,7 @@ Ogni qual volta si crea una regola che genera un evento "globale", ogni nodo spe
 	   rete siano il minor numero possibile, e nell'eventuale creazioni di cicli nella rete,
 	   dovuta alla topologia della stessa, siano soppressi alla prima occasione utile.
 
-\begin{figure}[h]
+\begin{figure}[H]
 \makebox[\linewidth][c]{\includegraphics[scale=0.8]{FloodDiagram.pdf}}
 \caption{Sequence diagram dei messaggi usati per l'algoritmo di flooding.}
 \label{img:flooding}
@@ -395,10 +425,10 @@ Ogni qual volta si crea una regola che genera un evento "globale", ogni nodo spe
 \subsection{Algoritmo: Lamport modificato}
 Il ``Clock di Lamport" ci permette di dare una certa conseguenza temporale alle azioni.
 	   Questo sarà un numero intero crescente, ed identificherà ogni wave generata. Alla
-	   generazione di una wave ogni nodo userà il suo lamport interno, incrementato, per
+	   generazione di una wave ogni nodo userà il suo clock interno, incrementato, per
 	   identificarla. Questo ci permette, come già abbiamo spiegato, di controllare la
-	   propagazione dei messaggi. Sia quindi $Lmp_i$ il lamport della nuova wave ricevuta
-	   e $Lmp_n$ il lamport del nodo corrente. Le azioni intraprendibili sono:
+	   propagazione dei messaggi. Sia quindi $Lmp_i$ il clock della nuova wave ricevuta
+	   e $Lmp_n$ il clock del nodo corrente. Le azioni intraprendibili sono:
 \begin{itemize}
 	\item $Lmp_i = Lmp_n + 1$: eseguo immediatamente l'azione in essa contenuta ed aggiorno
 	   il valore di $Lmp_n$;
@@ -407,8 +437,34 @@ Il ``Clock di Lamport" ci permette di dare una certa conseguenza temporale alle 
 	   quindi mantenere l'ordine causale delle azioni;
 	\item $Lmp_i < Lmp_n$: vado ad eseguire l'azione solo nel caso in cui tutte le variabili
 	   coinvolte non siano già state modificate da una wave ad essa successiva, cioè con
-	   $lamport > Lmp_i$.
+	   $clock > Lmp_i$.
 \end{itemize}
+
+\subsection{Algoritmo: Distribuited Spanning Tree}
+L'albero di copertura (o spanning tree) è un protocolo distribuito tra i nodi ideato per limitare il numero di messaggi nella rete. Questo protocollo risulta essere una versione modificate el più noto \textit{STB} (IEEE 802.1aq). Tutto questo protocollo viene eseguito sempre dal sistema di heartbeat, in quanto strettamente correlati.
+
+Questo protocollo si divide in 3 fasi:
+\begin{itemize}
+    \item \textit{\textbf{discovery}}: in questa fase, il nodo che si sta connettendo esplora la rete, e dice a tutti di essere la radice. A seconda delle condizioni, esplicitate in dettagli nel capitolo successivo, potrà effettivamente esserlo o meno;
+    \item \textit{\textbf{listening}}: in questa fase, l'albero risulta stabile. Ogni $\bar{\tau}$ la radice ``eletta" manda dei pacchetti di keep alive ai figli. Nel momento in cui un la radice cesserà la sua permanenza nella rete, si passerà alla fase successiva;
+    \item \textit{\textbf{transiction}}: in questa fase, per almeno uno componente della rete, la radice risulta non più raggiungibile. In questa fase i nodi coinvolti, non possono accettare la vecchia radice. Questa fase avviene quando un nodo perde la sua ``radice", o quando lo spanning tree perde la radice che lo genera.
+\end{itemize}
+
+La scelta della radice avviene in maniera deterministica, sfruttando l'identificatore univoco di cui ogni nodo è dotato. Definiamo $<saved\_root, saved_len, saved_nh>$ la tupla che identifica i dati di radice attualmente salvata, la mia attuale distanza e attraverso quale vicino riesco a raggiungerla, mentre definiamo come $<root, len, nh>$ la tupla proposta dai miei vicini. A questo punto la scelta per un nodo della sua radice avviene come segue:
+\begin{itemize}
+    \item $saved\_root > root$: la radice proposta è inferiore alla mia e sarà scelta come mia nuova radice;
+    \item $saved\_root = root \land saved\_len + 1 < len$: il mio vicino è ha una distanza peggiore della mia, lo avviso che il mio percorso potrebbe essere migliore;
+    \item $saved\_root = root \land saved\_len > len + 1 $: la mia distanza è peggiore di quella proposta, mi sposto sul mio vicino, in maniera di esser più vicino alla radice;
+    \item $saved\_root = root \land saved\_len = len + 1  \land nh\_saved > nh$: per questioni di determinismo, se la distanza e la radice proposta sono identiche, scelgo come ``porta" verso la radice il mio vicino con id minore degli altri.
+\end{itemize}
+
+A questo punto possiamo scegliere anche a quali dei nostri possiamo inviare i messaggi: poichè ogni nodo è informato se è un nodo scelto o meno, se inoltriamo i messaggi solo ai vicini in cui sono stato scelto o al vicino che io ho scelto, posso raggiungere tutta la rete con un numero minimo di messaggi. A tal fine ogni vicino potrà assumere 3 vari stati:
+\begin{itemize}
+    \item\textit{root\_port}: vicino scelto per raggiungere la radice;
+    \item\textit{active}: vicino che mi ha scelto per raggiungere la radice;
+    \item\textit{disabled}: vicino che non dipende da me.
+\end{itemize}
+
 
 \section{Architettura fisica e deployment}
 Per quanto riguarda l'architettura fisica è necessario l'utilizzo di microcalcolatori,
