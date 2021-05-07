@@ -1,10 +1,19 @@
-\documentclass{memoir}
+\documentclass[italian]{memoir}
 \usepackage{lmodern}
 \usepackage[utf8]{inputenc}
 \usepackage[italian]{babel}
+\usepackage[T1]{fontenc}
 \usepackage{float}
 \usepackage{amsmath}
 \usepackage{graphicx}
+\usepackage{hyperref}
+
+\usepackage{minted}
+\usepackage{xcolor}
+\usepackage{color}
+
+%\usepackage[toc,page]{appendix}
+\usepackage{titlesec}
 
 \graphicspath{{./draws/}}
 
@@ -18,21 +27,19 @@
 
 \begin{document}
 
-
-%\begin{titlingpage}
+\pagenumbering{gobble}
 \maketitle
-%\begin{abstract}
-%The aim of this document is to describe how to write a report for the project-exam
-%	   for the course Distributed Systems, at the University of Udine.
-%It is also a guideline for the development of the project itself.
-%
-%This document is very brief and succint, and it is by no means comprehensive of
-%	   all
-%	   the informations that should be given about a software project. You are invited
-%	   to
-%	   supplement these guidelines as needed to best describe your work.
-%\end{abstract}
-%\end{titlingpage}
+\newpage
+
+\pagenumbering{alph}
+\tableofcontents
+\newpage
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%			prefazione    		%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\pagenumbering{arabic}
+
 
 \chapter{Introduzione}\label{ch:intro}
 
@@ -503,7 +510,28 @@ Sono state inoltre individuate le seguenti \textbf{funzionalità avanzate}:
 	\item implementazione di un \emph{calculus} locale.
 \end{itemize}
 
+\chapter{Implementazione}
+In questo capitolo tratteremo le scelte implementative avvenute nel corso del progetto. ci focalizzaremo man mano nei vari dettagli, cercando di spiegarne le motivazioni delle varianti adottate dai vari algoritmi o protocolli standard.
 
+\section{Software e hardware}
+Per l'implementazione non si è seguita una vera e propria scelta hardware, ma si è tenuto conto i vincoli, quali scarsa capacità computazionale e scarsa memoria.
+
+A livello software la scelta è ricaduta su Erlang, in quanto linguaggio fortemente orientato ai threads, funzionale e con spiccata capacità alle connessioni. Altra peculiarità sono le librerie messe a disposizione dallo stesso tramite OTP (Open Telecom Platform). Di queste librerie sfrutteremo fortemente dei ``behavior module'', quali \textit{gen\_server} e \textit{supervisor}, i quali danno a disposizione l'astrazione del meccanismo del client/server e di supervisione dei threads del processo in vita. I moduli sviluppati più interessanti saranno quindi descritti in dettaglio nei paragrafi successivi.
+
+\section{Utilizzo dei ``Supervisors"}
+Come già accennato, il meccanismo dei supervisor permette di gestire tutti i threads che verranno creati per i vari processi del nodo. Come si può notare in figura \ref{img:struttura_nodo}, abbiamo due supervisor: uno per mantenere la vitalità di tutti i processi interni (dal modulo di ``state\_server" al più semplice ``HB\_out").
+
+Il primo supervisor, generato dal modulo \textit{``supervisor\_nodo"}, provvede a sopperire alla necessità di mantenere in vita tutti quei dati essenziali al funzionamento del nodo. Al suo interno infatti verrà istanziata la tabella ``ets'' dove vengono salvate tutte le informazioni relative alle funzionalità del nodo (lo stato dell'albero, il clock, le regole,...), verrà istanziato il thread designato alla comunicazione con l'ambiente, e per finire anche il thread che si occuperà di manipolare in maniera \textit{sicura} i parametri del nodo. Ultimo, ma non per importanza, verrà generato come figlio del supervisor generale del nodo, il supervisor dei ``workers'', che si occuperà di mantenere in vita i thread per l'heartbeat e per chi interpreterà le regole.
+
+Codice d'esempio si trova Nell'appendice \ref{code:supervisor}.
+
+\section{Heartbeat (module: HB\_in)}
+
+\section{Server dei parametri (module: state\_server)}
+
+\section{Esecutore dei comandi (module: rules\_worker)}
+
+\section{Ambiente e la comunicazione con i nodi}
 %\chapter{Implementation}
 %
 %Details about the implementation: every choice about platforms, languages, software/hardware,
@@ -531,7 +559,56 @@ Sono state inoltre individuate le seguenti \textbf{funzionalità avanzate}:
 %
 %In the Appendix you can put code snippets, snapshots, installation instructions,
 %	   etc.
-
+\appendix
+\titleformat{\chapter}[display]
+  {\normalfont\large\bfseries}% <- font for label "Appendix A", default \huge
+  {\chaptertitlename\ \thechapter}
+  {20pt}
+  {\large}% <- font for title, default \Huge
+\chapter{Supervisors}\label{code:supervisor}
+Di seguito estratto di codice per il supervisor del nodo.\\
+\begin{minted}[
+frame=lines,
+framesep=2mm,
+baselinestretch=1.2,
+bgcolor=white,
+fontsize=\footnotesize,
+linenos
+]{erlang}
+init({Id, Tipo}) ->
+  State_tables = create_table(Id, Tipo),
+  Server_name = list_to_atom(atom_to_list(Id) ++ "_server"),
+  Rules_worker_name = list_to_atom(atom_to_list(Id) ++ "_rules_worker"),
+  Comm_ambiente_name = list_to_atom(atom_to_list(Id) ++ "_comm_ambiente"),
+  HB_name = list_to_atom(atom_to_list(Id) ++ "_heartbeat_in"),
+  MaxRestart = 1,
+  MaxRestartPeriod = 5,
+  SupFlags = #{strategy => one_for_one, 
+               intensity => MaxRestart, period => MaxRestartPeriod},
+  ChildSpecs = [
+    #{id => state_server,
+      start => {state_server, start_link, [Server_name, Id, State_tables]},
+      restart => permanent,
+      shutdown => infinity,
+      type => worker,
+      modules => [state_server]},
+    #{id => sup_workers,
+      start => {supervisor_workers, start_link,
+       [Id, Server_name, Rules_worker_name, HB_name]},
+      restart => permanent,
+      shutdown => infinity,
+      type => supervisor,
+      modules => [supervisor_workers]},
+    #{id => comm_ambiente,
+      start => {comm_ambiente, start_link, 
+       [Comm_ambiente_name, Server_name, Rules_worker_name, HB_name, Id]},
+      restart => permanent,
+      shutdown => infinity,
+      type => worker,
+      modules => [comm_ambiente]}
+  ],
+  {ok, {SupFlags, ChildSpecs}}.
+\end{minted}
 
 %\chapter*{Evaluation}
 %Your system will be judged mainly on how it operates as a distributed system. The
