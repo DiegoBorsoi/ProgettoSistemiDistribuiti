@@ -6,6 +6,8 @@
 *.synctex.gz
 *.bbl
 *.blg
+*.toc
+relazione/_minted*
 
 # file binari di erlang
 *.beam
