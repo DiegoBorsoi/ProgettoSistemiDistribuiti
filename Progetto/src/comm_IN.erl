@@ -57,16 +57,16 @@ listen(State = #comm_IN_state{id = Id, server = Server_name, rules_worker = RW, 
           ok
       end,
       listen(State);
-    {transact_ack, Id_sender, Trans_clock, Trans_id_gen} ->
+    {transact_ack, Id_sender, Trans_clock, Trans_id_gen, Trans_id_ack} ->
       io:format("~p : Received transaction req ack: ~p.~n", [Id, {Trans_clock, Trans_id_gen}]),
-      case check_flood_validity(transaction_ack, Trans_clock, Trans_id_gen, FT) of
+      case check_flood_validity({transaction_ack, Trans_id_ack}, Trans_clock, Trans_id_gen, FT) of
         true ->
           if
             (Trans_id_gen == Id) -> % se è un ack di una mia transazione
-              rules_worker:transact_ack(RW, Id_sender, Trans_clock, Trans_id_gen);
+              rules_worker:transact_ack(RW, Trans_id_ack, Trans_clock, Trans_id_gen);
             true -> % altrimenti lo invio agli altri vicini
               {ok, Active_neighbs} = state_server:get_active_neighb(Server_name),
-              spawn(comm_OUT, init, [{transact_ack, Id, Trans_clock, Trans_id_gen}, Active_neighbs -- [Id_sender]])
+              spawn(comm_OUT, init, [{transact_ack, Id, Trans_clock, Trans_id_gen, Trans_id_ack}, Active_neighbs -- [Id_sender]])
           end;
         _ ->
           ok

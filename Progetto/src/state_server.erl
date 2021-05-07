@@ -381,6 +381,8 @@ code_change(_OldVsn, State, _Extra) ->
 % controlla se le variabili all'interno della guardia non sono state modificate dopo Action_clock
 check_external_guard_vars_clock(Action_clock, Guard, VT) ->
   case Guard of
+    {} ->
+      true;
     {_, Var1, Var2} ->
       Var1_ris = case is_atom(Var1) of
                    true ->
@@ -434,6 +436,8 @@ check_external_guard_vars_clock(Action_clock, Guard, VT) ->
 % controlla se le variabili all'interno della condizione cond non sono state modificate dopo Rule_clock
 check_cond_vars_clock(Rule_clock, Cond, VT) ->
   case Cond of
+    {} ->
+      true;
     {_, Var1, Var2} ->
       Var1_ris = case is_atom(Var1) of
                    true ->
@@ -505,6 +509,8 @@ check_rules_action_vars_clock(Action_clock, Action_list, VT) ->
 % esegue la condizione per ottenerne il risultato (semplice)
 check_condition(Cond, VT, PT) ->
   case Cond of      %operazioni binarie
+    {} ->
+      true;
     {Op, Var1, Var2} -> % operazioni di arità 2: lt, lte, gt, gte, eq, neq
       % nel caso in cui le variabili siano atomi (quindi vere e proprie variabili) devo ottenere il valore corrispondente
       % altrimenti sono dei semplici numeri e quindi li uso così come sono

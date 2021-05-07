@@ -174,7 +174,7 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
                                             []
                                         end,
                      % faccio partire un timer che mi limita il tempo di attesa per delle risposte
-                     erlang:send_after(5000, self(), {started_transaction_timeout_ended, New_clock + 1}),
+                     erlang:send_after(3000, self(), {started_transaction_timeout_ended, New_clock + 1}),
                      {noreply, State#rules_worker_state{priority_queue = New_PQ, transaction_state = {started_transaction, New_clock + 1, Transaction_list, Act}}};
                    false ->
                      {noreply, State#rules_worker_state{priority_queue = New_PQ}}
@@ -190,9 +190,9 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
                                                true ->
                                                  % invia la risposta di partecipazione alla transazione
                                                  {ok, Active_neighbs} = state_server:get_active_neighb(Server),
-                                                 spawn(comm_OUT, init, [{transact_ack, Id, Action_clock, Id_gen}, Active_neighbs]),
+                                                 spawn(comm_OUT, init, [{transact_ack, Id, Action_clock, Id_gen, Id}, Active_neighbs]),
                                                  % faccio partire un timer per uscire dalla transazione dopo x secondi
-                                                 erlang:send_after(3000, self(), {transact_timeout_ended, Id_gen, Action_clock}),
+                                                 erlang:send_after(5000, self(), {transact_timeout_ended, Id_gen, Action_clock}),
                                                  {waiting_commit, Id_gen, Action_clock, Action};
                                                false ->
                                                  {none}
