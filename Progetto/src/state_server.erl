@@ -493,9 +493,9 @@ check_rules_action_vars_clock(Action_clock, Action_list, VT) ->
     true,
     Action_list).
 
-% esegue la condizione per ottenerne il risultato
+% esegue la condizione per ottenerne il risultato (semplice)
 check_condition(Cond, VT, PT) ->
-  case Cond of
+  case Cond of      %operazioni binarie
     {Op, Var1, Var2} -> % operazioni di arità 2: lt, lte, gt, gte, eq, neq
       % nel caso in cui le variabili siano atomi (quindi vere e proprie variabili) devo ottenere il valore corrispondente
       % altrimenti sono dei semplici numeri e quindi li uso così come sono
@@ -526,7 +526,20 @@ check_condition(Cond, VT, PT) ->
         eq ->
           Real_var1 == Real_var2;
         neq ->
-          Real_var1 =/= Real_var2
+          Real_var1 =/= Real_var2;
+        _ ->
+          io:format("State server - check_condition condizione non riconosciuta: ~p.~n", [Cond]),
+          false
+      end;
+    {OpU, Tpc} ->         %operazioni unarie
+      case OpU of
+        tpe ->
+          [{tipo, Tpc}] == ets:lookup(PT, tipo);
+        ntp ->
+          [{tipo, Tpc}] =/= ets:lookup(PT, tipo);
+        _ ->
+          io:format("State server - check_condition condizione non riconosciuta: ~p.~n", [Cond]),
+          false
       end;
     _ ->
       io:format("State server - check_condition condizione non riconosciuta: ~p.~n", [Cond]),
