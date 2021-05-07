@@ -177,10 +177,10 @@ handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{va
 
               % cerco le regole triggerate da quest'azione
               ets:foldl(
-                fun(Elem = {_, Elem_trigger, _, _}, Acc) ->
+                fun({Elem_type, Elem_trigger, Elem_cond, Elem_act}, Acc) ->
                   case Elem_trigger -- Trigger of
                     [] ->
-                      [Elem | Acc];
+                      [{Elem_type, Action_clock, Elem_cond, Elem_act} | Acc];
                     _ ->
                       Acc
                   end
@@ -212,10 +212,10 @@ handle_call({exec_action_from_local_rule, Action_clock, Action}, _From, State = 
 
               % cerco le regole triggerate da quest'azione
               ets:foldl(
-                fun(Elem = {_, Elem_trigger, _, _}, Acc) ->
+                fun({Elem_type, Elem_trigger, Elem_cond, Elem_act}, Acc) ->
                   case Elem_trigger -- Trigger of
                     [] ->
-                      [Elem | Acc];
+                      [{Elem_type, Action_clock, Elem_cond, Elem_act} | Acc];
                     _ ->
                       Acc
                   end
@@ -417,6 +417,15 @@ check_external_guard_vars_clock(Action_clock, Guard, VT) ->
                      true
                  end,
       Var1_ris and Var2_ris;
+    {Op, _} ->
+      case Op of
+        tpe ->
+          true;
+        ntp ->
+          true;
+        _ ->
+          false
+      end;
     _ ->
       io:format("State server - check_cond_vars_clock condizione sbagliata: ~p.~n", [Guard]),
       false

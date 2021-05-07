@@ -54,7 +54,7 @@
 %        { GUARDIE }: condizioni di guardia per l'esecuzione delle azioni descritte successivamente
 %        [ {var,val} ] : che variabile deve essere settata a cosa
 %
-%        GUARDIE: come condizioni, ma le operazioni sono (lt, lte, gt, gte, eq, neq, itp, ntp)
+%        GUARDIE: come condizioni, ma le operazioni sono (lt, lte, gt, gte, eq, neq, tpe, ntp)
 %    }
 %}
 %

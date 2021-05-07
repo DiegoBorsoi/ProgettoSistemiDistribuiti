@@ -108,7 +108,9 @@ create_table(Id, Tipo) ->
       lists:foreach(
         fun({Var_name, Var_value}) -> ets:insert(Vars, {Var_name, Var_value, -1}) end,
         Vrs),
-      ets:insert(Rules, Rls);
+      lists:foreach(
+        fun(Rule) -> ets:insert(Rules, Rule) end,
+        Rls);
     _ ->
       io:format("Errore nella lettura del file contenente le regole.")
   end,

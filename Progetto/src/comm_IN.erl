@@ -45,7 +45,7 @@ listen(State = #comm_IN_state{id = Id, server = Server_name, rules_worker = RW, 
       io:format("~p : Received transaction request: ~p.~n", [Id, Action]),
       if
         (Trans_id_gen =/= Id) ->
-          case check_flood_validity(transaction, Trans_clock, Trans_id_gen, FT) of
+          case check_flood_validity(transaction_rqs, Trans_clock, Trans_id_gen, FT) of
             true -> % nuova transazione
               rules_worker:exec_action(RW, {transaction_rqs, Trans_id_gen}, Trans_clock, Action),
               {ok, Active_neighbs} = state_server:get_active_neighb(Server_name),
@@ -57,11 +57,42 @@ listen(State = #comm_IN_state{id = Id, server = Server_name, rules_worker = RW, 
           ok
       end,
       listen(State);
-    {transact_req_ack, Id_sender, Action_clock, Id_gen} ->
-      io:format("~p : Received transaction req ack: ~p.~n", [Id, {Action_clock, Id_gen}]),
+    {transact_ack, Id_sender, Trans_clock, Trans_id_gen} ->
+      io:format("~p : Received transaction req ack: ~p.~n", [Id, {Trans_clock, Trans_id_gen}]),
+      case check_flood_validity(transaction_ack, Trans_clock, Trans_id_gen, FT) of
+        true ->
+          if
+            (Trans_id_gen == Id) -> % se è un ack di una mia transazione
+              rules_worker:transact_ack(RW, Id_sender, Trans_clock, Trans_id_gen);
+            true -> % altrimenti lo invio agli altri vicini
+              {ok, Active_neighbs} = state_server:get_active_neighb(Server_name),
+              spawn(comm_OUT, init, [{transact_ack, Id, Trans_clock, Trans_id_gen}, Active_neighbs -- [Id_sender]])
+          end;
+        _ ->
+          ok
+      end,
       listen(State);
-    {transact_start, Id_sender, Action_clock, Id_gen, Partecipants} ->
-      io:format("~p : Received transaction start: ~p.~n", [Id, {Action_clock, Id_gen, Partecipants}]),
+    {transact_start, Id_sender, Trans_clock, Trans_id_gen, Participants} ->
+      io:format("~p : Received transaction start: ~p.~n", [Id, {Trans_clock, Trans_id_gen, Participants}]),
+      if
+        (Trans_id_gen =/= Id) ->
+          case check_flood_validity(transaction_start, Trans_clock, Trans_id_gen, FT) of
+            true ->
+              case [Id] -- Participants of
+                [] -> % faccio parte della transazione
+                  rules_worker:transact_commit(RW, Trans_id_gen, Trans_clock);
+                _ -> % non ne faccio parte
+                  ok
+              end,
+              % in ogni caso invio il messaggio ai vicini
+              {ok, Active_neighbs} = state_server:get_active_neighb(Server_name),
+              spawn(comm_OUT, init, [{transact_start, Id, Trans_clock, Trans_id_gen, Participants}, Active_neighbs -- [Id_sender]]);
+            _ ->
+              ok
+          end;
+        true ->
+          ok
+      end,
       listen(State);
     Msg ->
       io:format("~p : Unespected message: ~p.~n", [Id, Msg]),
