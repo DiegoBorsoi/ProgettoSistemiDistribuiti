@@ -102,12 +102,10 @@ listen(State = #hb_state{
     {start_echo} ->
 %%      io:format("~p: Inizio procedura echo.~n", [Id]),
       New_NS = set_neighbs_state(NS),
-
       % viene create il processo hb_OUT che si occupa di inviare il messaggio di echo_rqs a tutti i vicini
       {ok, Neighbs_hb} = state_server:get_neighb_hb(Server_name),
       Msg = {echo_rqs, HB_name},
       spawn(hb_OUT, init, [Server_name, Msg, Neighbs_hb]),
-
       listen(State#hb_state{neighb_state = New_NS});
     {echo_timer_ended} ->
 %%      io:format("~p: Timer dell'ECHO finito.~n", [Id]),

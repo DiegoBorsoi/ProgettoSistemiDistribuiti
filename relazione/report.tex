@@ -447,7 +447,7 @@ Il ``Clock di Lamport" ci permette di dare una certa conseguenza temporale alle 
 	   $clock > Lmp_i$.
 \end{itemize}
 
-\subsection{Algoritmo: Distribuited Spanning Tree}
+\subsection{Algoritmo: Distribuited Spanning Tree}\label{algo:dstp}
 L'albero di copertura (o spanning tree) è un protocolo distribuito tra i nodi ideato per limitare il numero di messaggi nella rete. Questo protocollo risulta essere una versione modificate el più noto \textit{STB} (IEEE 802.1aq). Tutto questo protocollo viene eseguito sempre dal sistema di heartbeat, in quanto strettamente correlati.
 
 Questo protocollo si divide in 3 fasi:
@@ -457,7 +457,7 @@ Questo protocollo si divide in 3 fasi:
     \item \textit{\textbf{transiction}}: in questa fase, per almeno uno componente della rete, la radice risulta non più raggiungibile. In questa fase i nodi coinvolti, non possono accettare la vecchia radice. Questa fase avviene quando un nodo perde la sua ``radice", o quando lo spanning tree perde la radice che lo genera.
 \end{itemize}
 
-La scelta della radice avviene in maniera deterministica, sfruttando l'identificatore univoco di cui ogni nodo è dotato. Definiamo $<saved\_root, saved_len, saved_nh>$ la tupla che identifica i dati di radice attualmente salvata, la mia attuale distanza e attraverso quale vicino riesco a raggiungerla, mentre definiamo come $<root, len, nh>$ la tupla proposta dai miei vicini. A questo punto la scelta per un nodo della sua radice avviene come segue:
+La scelta della radice avviene in maniera deterministica, sfruttando l'identificatore univoco di cui ogni nodo è dotato. Definiamo $<saved\_root, saved\_len, saved\_nh>$ la tupla che identifica i dati di radice attualmente salvata, la mia attuale distanza e attraverso quale vicino riesco a raggiungerla, mentre definiamo come $<root, len, nh>$ la tupla proposta dai miei vicini. A questo punto la scelta per un nodo della sua radice avviene come segue:
 \begin{itemize}
     \item $saved\_root > root$: la radice proposta è inferiore alla mia e sarà scelta come mia nuova radice;
     \item $saved\_root = root \land saved\_len + 1 < len$: il mio vicino è ha una distanza peggiore della mia, lo avviso che il mio percorso potrebbe essere migliore;
@@ -526,6 +526,49 @@ Il primo supervisor, generato dal modulo \textit{``supervisor\_nodo"}, provvede 
 Codice d'esempio si trova Nell'appendice \ref{code:supervisor}.
 
 \section{Heartbeat (module: HB\_in)}
+Come descritto precedentemente, nel modulo \textit{HB\_in} possiamo trovare tutti i meccanismi legati alla gestione della rete e delle sue funzionalità come tale. Nello specifico, questo si occupa solamente di controllare la ``vitalità" di un nodo e di creare un albero di copertura della rete stabile, con tutti i suoi protocolli annessi.
+
+\subsection{Heartbeat - consistenza della rete}
+La prima funzionalità (appunto, garantire la consistenza della rete), serve a garantire che se un nodo a me vicino si spenga o diventi non più raggiungibile, allora non devo più considerarlo come mio vicino. La consistenza della rete avviene tramite alcune variabili di stato interne al modulo, identificabili dalla tupla:
+$$
+    <neighb\_clocks, neighb\_state>
+$$
+Il primo valore della tupla identifica una mappa di tipo $<id,clock>$, e mi serve nel momento in cui ho un aggiornamento del clock interno dovuto al ricongiungimento di una rete partizionata: per cercar di garantire la consistenza delle wave di regole che si propagheranno nella rete, dovrò cercare di allineare tutti i componenti della rete al medesimo clock.
+Il secondo valore della tupla identifica una mappa del tipo $<id,stato>$: per controllare la vitalità di un nodo devo infatti verificarne la sua presenza attraverso il meccanismo di ``echo" descritto nel paragrafo \ref{heartbeat}. Alla creazione del nodo suppongo che tutti i miei vicini siano ``vivi", e sono tali fino a prova contraria (ovvero quando non rispondono più agli echo). Gli \emph{stati} assumibili dai vicini in questa mappa quindi saranno:
+$$
+stato(\eta:neightboard)=\begin{cases}
+                         alive, & \mbox{se }\eta\mbox{ ha risposto all'ultimo echo} \\
+                         maybe\_death, & \mbox{se }\eta\mbox{ non ha risposto all'ultimo echo}\\
+                         death, & \mbox{se }\eta\mbox{ non ha risposto agli ultimi due echo}
+                   \end{cases}
+$$
+con $\eta$ vicino di ogni nodo.\\
+Si rimanda all'appendice \ref{code:heartbeat} per ulteriori esemplificazioni.
+
+\subsection{Heartbeat - spanning tree}
+Come abbiamo già accennato in precedenza, il protocollo di spanning tree prende spunto dal più famoso \textit{spanning tree protocol} adottato dai bridge. 
+
+Questo protocollo basa il suo funzionamento sull'interscambio di tuple:
+\begin{enumerate}
+\item $<tree\_state,<root,len,nh>>$: questa tupla indica lo stato dell'albero per il nodo che la propaga. Essa infatti contiene chi è la radice per quel nodo, quanto essa è distante e chi è che manda fuori il pacchetto;
+\item $<tree\_ack, id>$: questo pacchetto avvisa il nodo vicino che verrà usato per ``instradare" pacchetti nella rete;
+\item $<tree\_rm\_rp, id>$; avvisa la mia vecchia \textit{root\_port} che non la utilizzo più per instradare pacchetti.
+\end{enumerate}
+Per ulteriori delucidazioni su come vengono instraprese le scelte si rimanda al paragrafo \ref{algo:dstp}.
+
+La necessità di avvisare i nodi vicini che li usiamo come root port o meno nasce dalla particolare situazione in cui ci troviamo: poichè non abbiamo un vero e proprio ambiente dove nodo non designato al raggiungimento della radice comunica con tutti i nodi di quella zona, siamo costretti ad avvisare se un nodo è una root\_port o meno. Questo passaggio complica la rete, in quanto crea un ``overhead" di messaggi normalmente non contemplato dal protocollo originale.
+
+Ulteriormente, poichè tutti i nodi non possono accorgersi in ``tempo reale" della situazione delle loro ``porte" (dato che sono tutte connessioni punto-punto), si richiede l'utilizzo ulteriori clock per la correttezza dell'albero dell'albero: uno sarà settato al controllo dell'effettiva vitalità di un vicino, uno per i timeout per la vitalità della radice, ed uno per non accettare l'id della vecchia radice come nuova radice. L'utilizzo di questi clock creano altri messaggi di saturazione della ``rete emulata", desincronizzano i vari nodi, e peggiorano le performance, imponendo necessariamente una potenza di calcolo più grande di quanto non sia una rete fisica.
+
+\subsection{Heartbeat - comunicazioni in uscita}
+Per le comunicazioni in uscita, come possiamo notare da alcune linee di codice dell'appendice \ref{code:heartbeat}, interpelliamo il modulo \textit{HB\_out}: questo modulo gestisce le comunicazioni in uscita, compresi gli errori di comunicazione. Parametri richiesti per la comunicazione verso l'esterno sono:
+\begin{itemize}
+\item \textit{pacchetto}: il messaggio già confezionato da inviare
+\item \textit{vicini}: una lista iterabile di vicini a cui mandarlo (per precisione, al loro hearbeart).
+\end{itemize}
+Questo thread viene direttamente creato dal modulo di \textit{HB\_in}, ed appena esaurisce la lista cessa la sua esistenza.
+
+Si rimanda al file in \texttt{src/HB\_out.erl} per vedere in dettaglio il suo funzionamento.
 
 \section{Server dei parametri (module: state\_server)}
 
@@ -563,17 +606,16 @@ Codice d'esempio si trova Nell'appendice \ref{code:supervisor}.
 \titleformat{\chapter}[display]
   {\normalfont\large\bfseries}% <- font for label "Appendix A", default \huge
   {\chaptertitlename\ \thechapter}
-  {20pt}
+  {10pt}
   {\large}% <- font for title, default \Huge
+\titlespacing{\chapter}{0pt}{*4}{*1}
 \chapter{Supervisors}\label{code:supervisor}
-Di seguito estratto di codice per il supervisor del nodo.\\
 \begin{minted}[
 frame=lines,
 framesep=2mm,
 baselinestretch=1.2,
-bgcolor=white,
-fontsize=\footnotesize,
-linenos
+fontsize=\footnotesize%,
+%linenos=true, samepage=true
 ]{erlang}
 init({Id, Tipo}) ->
   State_tables = create_table(Id, Tipo),
@@ -608,6 +650,178 @@ init({Id, Tipo}) ->
       modules => [comm_ambiente]}
   ],
   {ok, {SupFlags, ChildSpecs}}.
+\end{minted}
+
+
+\chapter{Heartbeat}\label{code:heartbeat}
+\begin{minted}[
+frame=lines,
+framesep=2mm,
+baselinestretch=1.2,
+bgcolor=white,
+fontsize=\footnotesize%,
+%linenos
+]{erlang}
+-record(hb_state, {
+  id,                %il mio id
+  hb_name,           %il mio hearbeat
+  server_name,       %il mio state server 
+  neighb_clocks,     %mappa dei vicini
+  neighb_state,      %mappa dello stato dei vicini
+  i_am_root,         %se sono la root true
+  is_root_alive,     %se la radice è viva è true
+  oldroot            %se la radice è morta per un po non posso riaccettarla
+}).
+
+start_link(Id, Server_name, HB_name) ->
+  Pid = spawn_link(?MODULE, init, [Id, Server_name, HB_name]),
+  {ok, Pid}.
+
+init(Id, Server_name, HB_name) ->
+  register(HB_name, self()),
+  State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name},
+  {ok, Clock} = state_server:get_clock(Server_name),
+  case Clock of
+    -1 ->
+      receive
+        {neighb_ready} -> % aspetto che il mio comm_ambiente abbia aggiornato la lista dei vicini
+          ok
+      end;
+    _ -> ok
+  end,
+  {ok, Neighbs} = state_server:get_neighb_hb(Server_name),
+  case {Clock, Neighbs} of
+    {-1, []} -> % siamo gli unici nella rete
+      state_server:update_clock(Server_name, 0),
+      Neighbs_clocks = maps:new();
+    {-1, _} -> %non ho ancora controllato i vicini
+      Neighbs_clocks = enter_network(Neighbs, State);
+    _ -> %il supervisor mi ha resuscitato
+      Neighbs_clocks = maps:from_list([{Node, -1} || Node <- Neighbs])
+  end,
+  Neighbs_state = maps:from_list([{Key, alive} || Key <- maps:keys(Neighbs_clocks)]),
+\end{minted}
+\begin{minted}[
+frame=lines,
+framesep=2mm,
+baselinestretch=1.2,
+bgcolor=white,
+fontsize=\footnotesize%,
+%linenos=false
+]{erlang}
+  % fingo la fine di un timer per dare inizio al protocollo, essendo is_root_alive inizializzato a false
+  self() ! {start_tree},    %parto con l'albero
+  self() ! {start_echo},    %parto con gli echo
+  listen(State#hb_state{neighb_clocks = Neighbs_clocks,
+                        neighb_state = Neighbs_state, 
+                        i_am_root = false, 
+                        is_root_alive = false, 
+                        oldroot = undefined}).
+
+[...]
+
+enter_network(Neighbs, _State = #hb_state{id = Id, hb_name = HB_name, server_name = Server_name}) ->
+  spawn(hb_OUT, init, [Server_name, {add_new_nd, Id, HB_name}, Neighbs]), % invia un messaggio ad ogni vicino maybe raggiungibile
+
+  Neighbs_clocks = maps:from_list([{Node, -1} || Node <- Neighbs]),  % crea una mappa per il salvataggio del clock dei vicini
+  New_neighbs_clocks = wait_for_all_neighbs(Neighbs_clocks, Server_name),
+  check_clock_values(New_neighbs_clocks, HB_name, Server_name),
+  New_neighbs_clocks.
+
+[...]
+
+    {add_new_nd, Id_sender, Id_hb_sender} ->
+%%      io:format("~p: Ricevuta richiesta connessione alla rete di ~p.~n", [Id, Id_sender]),
+      state_server:add_neighb(Server_name, {Id_sender, Id_hb_sender}),
+      {ok, Clock} = state_server:get_clock(Server_name),
+      try
+        Id_hb_sender ! {add_new_nb, HB_name, Clock}
+      catch
+        _:_ -> ok
+      end,
+% aggiorno le due mappe usate presenti nello stato
+      New_NC = maps:put(Id_hb_sender, Clock, NC),
+      New_NS = maps:put(Id_hb_sender, alive, NS),
+      listen(State#hb_state{neighb_clocks = New_NC, neighb_state = New_NS});
+
+[...]
+
+    {start_tree} ->
+      io:format("~p: Sono entrato in start_tree.~n", [Id]),
+      {ok, {Id_root, Dist, _ID_RP}} = state_server:get_tree_state(Server_name),
+      {ok, Neighbs_hb} = state_server:get_neighb_hb(Server_name),
+      spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Id_root, Dist, Id}}, Neighbs_hb]),
+      if
+        Id_root == Id ->
+          New_Im_root = true,
+          self() ! {tree_root_keep_alive_timer_ended};
+        true ->
+          New_Im_root = false
+      end,
+      listen(State#hb_state{i_am_root = New_Im_root, is_root_alive = false});
+[...]
+\end{minted}
+\begin{minted}[
+frame=lines,
+framesep=2mm,
+baselinestretch=1.2,
+bgcolor=white,
+fontsize=\footnotesize%,
+%linenos=false
+]{erlang}
+    {tree_state, HB_sender, {Id_root, Dist, Id_sender}} -> % messaggio di aggiornamento della radice dell'albero
+      io:format("~p: Ricevuto tree_state: ~p.~n", [Id, {Id_root, Dist, Id_sender}]),
+      {ok, {Saved_root, Saved_dist, Saved_RP}} = state_server:get_tree_state(Server_name),
+      {ok, Neighbs_map} = state_server:get_neighb_map(Server_name), % mappa con elementi {Id_nodo -> HB_nodo}
+      Neighbs_hb = maps:values(Neighbs_map),
+      if
+        Saved_root < Id_root ->
+          spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Saved_root, Saved_dist, Id}}, [HB_sender]]),
+          New_Im_root = Im_root,
+          New_is_alive = Root_alive;
+        (Saved_root == Id_root) andalso (Saved_dist + 1 < Dist) ->
+          spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Saved_root, Saved_dist, Id}}, [HB_sender]]),
+          New_Im_root = Im_root,
+          New_is_alive = Root_alive;
+        (Saved_root > Id_root) andalso (Oldroot =/= Id_root) ->
+          % aggiorno lo lo stato dell'albero salvato
+          state_server:set_tree_state(Server_name, {Id_root, Dist + 1, Id_sender}),
+% avviso la nuova route port che la uso come tale
+          spawn(hb_OUT, init, [Server_name, {tree_ack, Id}, [HB_sender]]),
+% avviso la vecchia route port che non la uso più
+          if
+            Saved_RP == Id ->
+              ok;
+            true ->
+              spawn(hb_OUT, init, [Server_name, {tree_rm_rp, Id}, [maps:get(Saved_RP, Neighbs_map)]])
+          end,
+% avviso i vicini che ho cambiato porta
+          spawn(hb_OUT, init, [Server_name, 
+              {tree_state, HB_name, {Id_root, Dist + 1, Id}},
+              Neighbs_hb -- [HB_sender]]),
+          New_Im_root = false,
+          New_is_alive = false,
+          erlang:send_after(4000, self(), {tree_keep_alive_timer_ended, Id_root});
+        ((Saved_root == Id_root) andalso (Saved_dist > Dist + 1))
+          orelse
+          ((Saved_root == Id_root) andalso (Saved_dist == Dist + 1) andalso (Id_sender < Saved_RP)) ->
+% aggiorno lo lo stato dell'albero salvato
+          state_server:set_tree_state(Server_name, {Id_root, Dist + 1, Id_sender}),
+% avviso la nuova route port che la uso come tale
+          spawn(hb_OUT, init, [Server_name, {tree_ack, Id}, [HB_sender]]),
+% avviso la vecchia route port che non la uso più
+          spawn(hb_OUT, init, [Server_name, {tree_rm_rp, Id}, [maps:get(Saved_RP, Neighbs_map)]]),
+% avviso i vicini che ho cambiato porta
+          spawn(hb_OUT, init, [Server_name, 
+              {tree_state, HB_name, {Id_root, Dist + 1, Id}}, 
+              Neighbs_hb -- [HB_sender]]),
+          New_Im_root = false,
+          New_is_alive = Root_alive;
+        true ->
+          New_Im_root = Im_root,
+          New_is_alive = Root_alive
+      end,
+      listen(State#hb_state{i_am_root = New_Im_root, is_root_alive = New_is_alive});
 \end{minted}
 
 %\chapter*{Evaluation}
