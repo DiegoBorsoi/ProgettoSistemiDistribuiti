@@ -542,6 +542,10 @@ check_condition(Cond, VT, PT) ->
           Real_var1 == Real_var2;
         neq ->
           Real_var1 =/= Real_var2;
+%%        land ->
+%%          check_condition(Real_var1,VT,PT) andalso check_condition(Real_var2,VT,PT);
+%%        lor ->
+%%          check_condition(Real_var1,VT,PT) orelse check_condition(Real_var2,VT,PT);
         _ ->
           io:format("State server - check_condition condizione non riconosciuta: ~p.~n", [Cond]),
           false
@@ -552,6 +556,15 @@ check_condition(Cond, VT, PT) ->
           [{tipo, Tpc}] == ets:lookup(PT, tipo);
         ntp ->
           [{tipo, Tpc}] =/= ets:lookup(PT, tipo);
+%%        lnot ->
+%%          Real_var1 = if
+%%                        is_atom(Var1) ->
+%%                          [{Var1, Var1_value, _Var1_clock}] = ets:lookup(VT, Var1),
+%%                          Var1_value;
+%%                        true ->
+%%                          Var1
+%%                      end,
+%%          check_condition(Real_var1, VT, PT);
         _ ->
           io:format("State server - check_condition condizione non riconosciuta: ~p.~n", [Cond]),
           false
