@@ -46,7 +46,7 @@
 %            op         : operazione della condizione (lt, lte, gt, gte, eq, neq)
 %            var1, var2 : variabili di stato coinvolte
 %        OR             **forse lo implementiamo**
-%            binop            : {and,or,not}
+%            binop            : {land,lor,lnot}
 %            {COND1}, {COND2} : lista di cond
 %    },
 %    AZIONE:
