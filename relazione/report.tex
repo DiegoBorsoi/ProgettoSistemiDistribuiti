@@ -164,7 +164,7 @@ Le future fasi di sviluppo seguiranno il seguente ordine:
 In questo capitolo vengono descritti nel dettaglio requisiti funzionali e non funzionali
 	   della soluzione proposta.
 
-\section{Requisiti Funzionali}
+\section{Requisiti Funzionali}\label{sec:funcReq}
 
 I requisiti funzionali individuati sono:
 \begin{itemize}
@@ -525,7 +525,7 @@ Il primo supervisor, generato dal modulo \textit{``supervisor\_nodo"}, provvede 
 
 Codice d'esempio si trova Nell'appendice \ref{code:supervisor}.
 
-\section{Heartbeat (module: HB\_in)}
+\section{Heartbeat (module: HB\_in)}\label{impl:hbin}
 Come descritto precedentemente, nel modulo \textit{HB\_in} possiamo trovare tutti i meccanismi legati alla gestione della rete e delle sue funzionalità come tale. Nello specifico, questo si occupa solamente di controllare la ``vitalità" di un nodo e di creare un albero di copertura della rete stabile, con tutti i suoi protocolli annessi.
 
 \subsection{Heartbeat - consistenza della rete}
@@ -545,6 +545,8 @@ $$
 con $\eta$ vicino di ogni nodo.\\
 Si rimanda all'appendice \ref{code:heartbeat} per ulteriori esemplificazioni.
 
+Un vicino si dichiara $maybe\_death$ dopo $\tau = 5s$, e $death$ dopo $2*\tau$.
+
 \subsection{Heartbeat - spanning tree}
 Come abbiamo già accennato in precedenza, il protocollo di spanning tree prende spunto dal più famoso \textit{spanning tree protocol} adottato dai bridge. 
 
@@ -560,6 +562,8 @@ La necessità di avvisare i nodi vicini che li usiamo come root port o meno nasc
 
 Ulteriormente, poichè tutti i nodi non possono accorgersi in ``tempo reale" della situazione delle loro ``porte" (dato che sono tutte connessioni punto-punto), si richiede l'utilizzo ulteriori clock per la correttezza dell'albero dell'albero: uno sarà settato al controllo dell'effettiva vitalità di un vicino, uno per i timeout per la vitalità della radice, ed uno per non accettare l'id della vecchia radice come nuova radice. L'utilizzo di questi clock creano altri messaggi di saturazione della ``rete emulata", desincronizzano i vari nodi, e peggiorano le performance, imponendo necessariamente una potenza di calcolo più grande di quanto non sia una rete fisica.
 
+Nel nostro specifico caso, viene fissato $\bar{\tau} = 2 s$, come timeout  $2*\bar{\tau}$, come timeout per accettare di nuovo la vecchia radice $3*\bar{\tau}$.
+
 \subsection{Heartbeat - comunicazioni in uscita}
 Per le comunicazioni in uscita, come possiamo notare da alcune linee di codice dell'appendice \ref{code:heartbeat}, interpelliamo il modulo \textit{HB\_out}: questo modulo gestisce le comunicazioni in uscita, compresi gli errori di comunicazione. Parametri richiesti per la comunicazione verso l'esterno sono:
 \begin{itemize}
@@ -570,11 +574,136 @@ Questo thread viene direttamente creato dal modulo di \textit{HB\_in}, ed appena
 
 Si rimanda al file in \texttt{src/HB\_out.erl} per vedere in dettaglio il suo funzionamento.
 
-\section{Server dei parametri (module: state\_server)}
+\section{Memoria dei parametri (module: state\_server)}
+Ogni nodo, come esplicitato nei requisiti funzionali (paragrado \ref{sec:funcReq}), necessita d'essere programmabile e d'avere un'insieme di variabili di stato proprie. Oltre a questo, abbiamo necessità di conoscere e di poter interpretare delle regole definite all'avvio del nodo. Inoltre, poichè abbiamo a che fare con un'ambiente virtualizzato, necessitiamo di sapere quali sono i vicini con cui collabora.
 
-\section{Esecutore dei comandi (module: rules\_worker)}
+Tutte queste informazioni, come già esplicitato nel capitolo precedente e nei paragrafi precedenti, sono salvate all'interno di uno ``state server'', il quale opera su delle tabelle persistenti, fronteggiate dal supervisor del nodo, al fine di non aver problematiche in caso di fallimenti.
+
+Lo state server è incentrato in un'ottica client/server: per questo motivo il suo behavior module è \textit{gen\_server}.
+
+Lo state server si occupa quindi di accedere in maniera sicura e non concorrenziale alle variabili a suo carico, al fine di non generare situazioni di deadlock o starvation.
+
+Lo stato dello \textit{state\_server} sarà quindi composto dalla tupla
+$$
+    <vars\_table, rules\_table, neighb\_table, node\_params\_table>
+$$
+dove ogni campo equivale a:
+\begin{itemize}
+    \item \textit{vars\_table}: tabella delle variabili;
+    \item \textit{rules\_table}: tabella delle regole;
+    \item \textit{nb\_table}: tabella dello stato dei vicini;
+    \item \textit{node\_params\_table}: tabella dei parametri interni al nodo.
+\end{itemize}
+
+I valori associati alla terza componente sono strettamente correlati a quanto affrontato nel paragrafo \ref{impl:hbin}: al suo interno troveremo delle tuple con i valori legati allo spanning tree per cui sapremo se inoltrare o meno un messaggio a quel nodo. L'inoltro di un messaggio verso un nodo avviene solo nel caso in cui il vicino sia in stato $active$ o $root\_port$.
+
+I valori associati alla quarto membro della tupla sono invece legati ad informazioni chiave per identificare il nodo di appartenenza. Al suo interno possiamo trovare alcune voci, quali, ad esempio, il suo identificativo univoco, che tipo di nodo è per la rete, quante \textit{``rules wave"} ha visto, il suo clock interno e chi è la sua radice. Queste informazioni sono identificative ed univoche per un nodo, e sono il suo stato interno.
+
+Il significato puntuale della prima e della seconda componente questa tupla verranno affrontati in miglior dettaglio nel paragrafo \ref{impl:rules_worker}. 
+
+Poichè lo state server è l'unico a poter manipolare le variabili del nodo, al suo interno avrà un piccolo ``interprete" per manipolare e controllare le variabili. Questo avviene in maniera ricorsiva mediante l'utilizzo di una funzione ricorsiva chiamata ``check\_condition" (si rimanda all'appendice \ref{code:stateserver} per ulteriori delucidazioni).
+
+\section{Esecutore dei comandi (module: rules\_worker)}\label{impl:rules_worker}
+
+blablablablablabla\\
+step per il parsing delle regole blablablabla
+
+\subsection{propagazione delle regole}
+blablablabla\\
+mi piace che vada fuori tutto subito e poi vedo se posso fare qualcosa\\
+blablablablabla
+
+\subsection{Organizzazione delle regole}
+effetti locali/glob/trans\\
+blablablablabl\\
+struttura in appendice\ref{code:rulesstruct}%importa o spiega il file rules_expl
+
+%eventualmente
+\subsubsection{Regola locali}
+ci sono note particolari?
+%eventualmente
+\subsubsection{Regola globali}
+ci sono note particolari?
+%eventualmente
+\subsubsection{Regola transazioni}
+ci sono note particolari?
+
+\subsection{calcolabilità}
+code prioritarie\\ (AQ:fifo,PQ:lifo,OHT:che ne so io, forse fifo?)\\blablablablabla\\
+influenza del clock\\
+blablablabla\\
+calcolabilità ricorsiva\\
+blablablabla\\
+
+\subsection{??}
+che altro devo mettere?
 
 \section{Ambiente e la comunicazione con i nodi}
+funzionalità dell'ambiente come:
+\begin{minted}[
+frame=lines,
+framesep=2mm,
+baselinestretch=1.2,
+fontsize=\footnotesize,
+linenos=true, %samepage=true
+]{erlang}
+%% client functions
+-export([ignore_neighb/2, kill_node/1, ...(?)]).
+
+-record(ambiente_state, {
+  graph,     %ets del grafo
+  id_spwn,
+  comm_spwn,
+  id_sup_node
+}).
+\end{minted}
+
+come comunico con il nodo?\\
+comm\_ambiente aiutaci tu!
+\begin{minted}[
+frame=lines,
+framesep=2mm,
+baselinestretch=1.2,
+fontsize=\footnotesize,
+linenos=true, %samepage=true
+]{erlang}
+%% client functions
+-export([add_neighb/2, ignore_neighb/2]).
+
+-record(comm_ambiente_state, {
+  name,
+  server_name,
+  rules_worker_name,
+  hb_name
+}).
+
+init([Name, Server_name, Rules_worker_name, HB_name, Id]) ->
+  ambiente ! {nodo_avviato, Name, {Id, HB_name}},  % IMPORTANTE: l'ambiente deve essere registrato sotto il nome "ambiente"
+  self() ! {start_discovery},
+  {ok, #comm_ambiente_state{name = Name, server_name = Server_name, rules_worker_name = Rules_worker_name, hb_name = HB_name}}.
+
+handle_cast({add_neighb, Node = {_Node_ID, _Node_HB_name}}, State = #comm_ambiente_state{server_name = Server}) ->
+  state_server:add_neighb(Server, Node),
+  {noreply, State};
+handle_cast({ignore_neighb, Neighb}, State = #comm_ambiente_state{server_name = Server}) ->
+  state_server:ignore_neighb(Server, Neighb),
+  {noreply, State};
+handle_cast(_Request, State = #comm_ambiente_state{}) ->
+  {noreply, State}.
+  
+handle_info({start_discovery}, State = #comm_ambiente_state{server_name = SN, hb_name = HBN}) ->
+  % richiedo all'ambiente di inviarmi la lista dei vicini
+  receive
+    {discover_neighbs, _Neighbs_list = []} ->
+      ok;
+    {discover_neighbs, Neighbs_list = [_ | _]} ->
+      io:format("Ricevuta lista di vicini: ~p.~n", [Neighbs_list]),
+      state_server:add_neighbs(SN, Neighbs_list)
+  end,
+  HBN ! {neighb_ready},
+  {noreply, State};
+  
+\end{minted}
 %\chapter{Implementation}
 %
 %Details about the implementation: every choice about platforms, languages, software/hardware,
@@ -614,8 +743,8 @@ Si rimanda al file in \texttt{src/HB\_out.erl} per vedere in dettaglio il suo fu
 frame=lines,
 framesep=2mm,
 baselinestretch=1.2,
-fontsize=\footnotesize%,
-%linenos=true, samepage=true
+fontsize=\footnotesize,
+linenos=true, %samepage=true
 ]{erlang}
 init({Id, Tipo}) ->
   State_tables = create_table(Id, Tipo),
@@ -658,9 +787,8 @@ init({Id, Tipo}) ->
 frame=lines,
 framesep=2mm,
 baselinestretch=1.2,
-bgcolor=white,
-fontsize=\footnotesize%,
-%linenos
+fontsize=\footnotesize,
+linenos=true, %samepage=true
 ]{erlang}
 -record(hb_state, {
   id,                %il mio id
@@ -700,15 +828,6 @@ init(Id, Server_name, HB_name) ->
       Neighbs_clocks = maps:from_list([{Node, -1} || Node <- Neighbs])
   end,
   Neighbs_state = maps:from_list([{Key, alive} || Key <- maps:keys(Neighbs_clocks)]),
-\end{minted}
-\begin{minted}[
-frame=lines,
-framesep=2mm,
-baselinestretch=1.2,
-bgcolor=white,
-fontsize=\footnotesize%,
-%linenos=false
-]{erlang}
   % fingo la fine di un timer per dare inizio al protocollo, essendo is_root_alive inizializzato a false
   self() ! {start_tree},    %parto con l'albero
   self() ! {start_echo},    %parto con gli echo
@@ -760,15 +879,7 @@ enter_network(Neighbs, _State = #hb_state{id = Id, hb_name = HB_name, server_nam
       end,
       listen(State#hb_state{i_am_root = New_Im_root, is_root_alive = false});
 [...]
-\end{minted}
-\begin{minted}[
-frame=lines,
-framesep=2mm,
-baselinestretch=1.2,
-bgcolor=white,
-fontsize=\footnotesize%,
-%linenos=false
-]{erlang}
+
     {tree_state, HB_sender, {Id_root, Dist, Id_sender}} -> % messaggio di aggiornamento della radice dell'albero
       io:format("~p: Ricevuto tree_state: ~p.~n", [Id, {Id_root, Dist, Id_sender}]),
       {ok, {Saved_root, Saved_dist, Saved_RP}} = state_server:get_tree_state(Server_name),
@@ -846,5 +957,114 @@ fontsize=\footnotesize%,
 %\item  How nice is the application's appearance: does it have a nice interface or
 %	   a compelling visual display?
 %\end{itemize}
+
+\chapter{Memoria dei parametri}\label{code:stateserver}
+\begin{minted}[
+frame=lines,
+framesep=2mm,
+baselinestretch=1.2,
+fontsize=\footnotesize,
+linenos=true, %samepage=true
+]{erlang}
+%% API
+-export([start_link/3]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+
+%% client functions
+-export([exec_action/3, exec_action_from_local_rule/3, check_rule_cond/3, check_trans_guard/3]).
+-export([update_clock/2, get_clock/1, get_rules/1]).
+-export([get_neighb/1, get_neighb_hb/1, add_neighb/2, add_neighbs/2, rm_neighb/2, rm_neighb_with_hb/2, check_neighb/2, get_neighb_map/1]).
+-export([get_tree_state/1, reset_tree_state/1, set_tree_state/2, set_tree_active_port/2, rm_tree_active_port/2]).
+-export([get_active_neighb/1, get_active_neighb_hb/1]).
+-export([ignore_neighb/2, get_ignored_neighb_hb/1]).
+
+-record(server_state, {
+  id,
+  vars_table,
+  rules_table,
+  neighb_table,
+  node_params_table,
+  lost_connections
+}).
+
+%%%===================================================================
+%%% API
+%%%===================================================================
+
+start_link(Name, Id, State_tables) when is_atom(Name) ->
+  gen_server:start_link({local, Name}, ?MODULE, [Id, State_tables], []);
+
+[...]
+
+check_condition(Cond, VT, PT) ->
+  case Cond of      %operazioni binarie
+    {} ->
+      true;
+    {Op, Var1, Var2} -> % operazioni di arità 2: lt, lte, gt, gte, eq, neq
+      % nel caso in cui le variabili siano atomi (quindi vere e proprie variabili) devo ottenere il valore corrispondente
+      % altrimenti sono dei semplici numeri e quindi li uso così come sono
+      Real_var1 = if
+                    is_atom(Var1) ->
+                      [{Var1, Var1_value, _Var1_clock}] = ets:lookup(VT, Var1),
+                      Var1_value;
+                    true ->
+                      Var1
+                  end,
+      Real_var2 = if
+                    is_atom(Var2) ->
+                      [{Var2, Var2_value, _Var2_clock}] = ets:lookup(VT, Var2),
+                      Var2_value;
+                    true ->
+                      Var2
+                  end,
+      % ritorna il valore corrispondente all'operazione eseguita sulle variabili
+      case Op of
+        lt ->
+          Real_var1 < Real_var2;
+        lte ->
+          Real_var1 =< Real_var2;
+        gt ->
+          Real_var1 > Real_var2;
+        gte ->
+          Real_var1 >= Real_var2;
+        eq ->
+          Real_var1 == Real_var2;
+        neq ->
+          Real_var1 =/= Real_var2;
+%%        land ->
+%%          check_condition(Real_var1,VT,PT) andalso check_condition(Real_var2,VT,PT);
+%%        lor ->
+%%          check_condition(Real_var1,VT,PT) orelse check_condition(Real_var2,VT,PT);
+        _ ->
+          io:format("State server - check_condition condizione non riconosciuta: ~p.~n", [Cond]),
+          false
+      end;
+    {OpU, Tpc} ->         %operazioni unarie
+      case OpU of
+        tpe ->
+          [{tipo, Tpc}] == ets:lookup(PT, tipo);
+        ntp ->
+          [{tipo, Tpc}] =/= ets:lookup(PT, tipo);
+%%        lnot ->
+%%          Real_var1 = if
+%%                        is_atom(Var1) ->
+%%                          [{Var1, Var1_value, _Var1_clock}] = ets:lookup(VT, Var1),
+%%                          Var1_value;
+%%                        true ->
+%%                          Var1
+%%                      end,
+%%          check_condition(Real_var1, VT, PT);
+        _ ->
+          io:format("State server - check_condition condizione non riconosciuta: ~p.~n", [Cond]),
+          false
+      end;
+    _ ->
+      io:format("State server - check_condition condizione non riconosciuta: ~p.~n", [Cond]),
+      false
+  end.
+\end{minted}
+
 
 \end{document}
