@@ -519,11 +519,11 @@ Per l'implementazione non si è seguita una vera e propria scelta hardware, ma s
 A livello software la scelta è ricaduta su Erlang, in quanto linguaggio fortemente orientato ai threads, funzionale e con spiccata capacità alle connessioni. Altra peculiarità sono le librerie messe a disposizione dallo stesso tramite OTP (Open Telecom Platform). Di queste librerie sfrutteremo fortemente dei ``behavior module'', quali \textit{gen\_server} e \textit{supervisor}, i quali danno a disposizione l'astrazione del meccanismo del client/server e di supervisione dei threads del processo in vita. I moduli sviluppati più interessanti saranno quindi descritti in dettaglio nei paragrafi successivi.
 
 \section{Utilizzo dei ``Supervisors''}
-Come già accennato, il meccanismo dei supervisor permette di gestire tutti i threads che verranno creati per i vari processi del nodo. Come si può notare in figura \ref{img:struttura_nodo}, abbiamo due supervisor: uno per mantenere la vitalità di tutti i processi interni (dal modulo di ``state\_server'' al più semplice ``HB\_out'').
+Come già accennato, il meccanismo dei supervisor permette di gestire tutti i threads che verranno creati per i vari processi del nodo. Come si può notare in figura \ref{img:struttura_nodo}, abbiamo due supervisor: uno principale che rappresenta il vero e proprio nodo ed un secondo per mantenere la vitalità di tutti i processi interni legati alla comunicazione (dal modulo ``rules\_worker'' al più semplice ``HB\_out'').
 
-Il primo supervisor, generato dal modulo \textit{``supervisor\_nodo''}, provvede a sopperire alla necessità di mantenere in vita tutti quei dati essenziali al funzionamento del nodo. Al suo interno infatti verrà istanziata la tabella ``ets'' dove vengono salvate tutte le informazioni relative alle funzionalità del nodo (lo stato dell'albero, il clock, le regole,...), verrà istanziato il thread designato alla comunicazione con l'ambiente, e per finire anche il thread che si occuperà di manipolare in maniera \textit{sicura} i parametri del nodo. Ultimo, ma non per importanza, verrà generato come figlio del supervisor generale del nodo, il supervisor dei ``workers'', che si occuperà di mantenere in vita i thread per l'heartbeat e per chi interpreterà le regole.
+Il primo supervisor, generato dal modulo \textit{``supervisor\_nodo''}, provvede a sopperire alla necessità di mantenere in vita tutti quei dati essenziali al funzionamento del nodo. Al suo interno infatti verranno istanziate le tabelle ``ets'' dove vengono salvate tutte le informazioni relative alle funzionalità del nodo (lo stato dell'albero, il clock, le regole,...), verrà istanziato il thread designato alla comunicazione con l'ambiente, e per finire anche il thread che si occuperà di manipolare in maniera \textit{sicura} i parametri del nodo. Ultimo, ma non per importanza, verrà generato come figlio del supervisor generale del nodo, il supervisor dei ``workers'', che si occuperà di mantenere in vita i thread per l'heartbeat e per chi interpreterà le regole.
 
-Codice d'esempio si trova Nell'appendice \ref{code:supervisor}.
+Codice d'esempio si trova nell'appendice \ref{code:supervisor}.
 
 \section{Heartbeat (module: HB\_in)}\label{impl:hbin}
 Come descritto precedentemente, nel modulo \textit{HB\_in} possiamo trovare tutti i meccanismi legati alla gestione della rete e delle sue funzionalità come tale. Nello specifico, questo si occupa solamente di controllare la ``vitalità'' di un nodo e di creare un albero di copertura della rete stabile, con tutti i suoi protocolli annessi.
@@ -556,11 +556,11 @@ Questo protocollo basa il suo funzionamento sull'interscambio di tuple:
 \item $<tree\_ack, id>$: questo pacchetto avvisa il nodo vicino che verrà usato per ``instradare'' pacchetti nella rete;
 \item $<tree\_rm\_rp, id>$; avvisa la mia vecchia \textit{root\_port} che non la utilizzo più per instradare pacchetti.
 \end{enumerate}
-Per ulteriori delucidazioni su come vengono instraprese le scelte si rimanda al paragrafo \ref{algo:dstp}.
+Per ulteriori delucidazioni su come vengono intraprese le scelte si rimanda al paragrafo \ref{algo:dstp}.
 
-La necessità di avvisare i nodi vicini che li usiamo come root port o meno nasce dalla particolare situazione in cui ci troviamo: poichè non abbiamo un vero e proprio ambiente dove nodo non designato al raggiungimento della radice comunica con tutti i nodi di quella zona, siamo costretti ad avvisare se un nodo è una root\_port o meno. Questo passaggio complica la rete, in quanto crea un ``overhead'' di messaggi normalmente non contemplato dal protocollo originale.
+La necessità di avvisare i nodi vicini che li usiamo come root port o meno nasce dalla particolare situazione in cui ci troviamo: poiché non abbiamo un vero e proprio ambiente dove un nodo non designato al raggiungimento della radice comunica con tutti i nodi di quella zona, siamo costretti ad avvisare se un nodo è una root\_port o meno. Questo passaggio complica la rete, in quanto crea un ``overhead'' di messaggi normalmente non contemplato dal protocollo originale.
 
-Ulteriormente, poichè tutti i nodi non possono accorgersi in ``tempo reale'' della situazione delle loro ``porte'' (dato che sono tutte connessioni punto-punto), si richiede l'utilizzo ulteriori clock per la correttezza dell'albero dell'albero: uno sarà settato al controllo dell'effettiva vitalità di un vicino, uno per i timeout per la vitalità della radice, ed uno per non accettare l'id della vecchia radice come nuova radice. L'utilizzo di questi clock creano altri messaggi di saturazione della ``rete emulata'', desincronizzano i vari nodi, e peggiorano le performance, imponendo necessariamente una potenza di calcolo più grande di quanto non sia una rete fisica.
+Ulteriormente, poichè tutti i nodi non possono accorgersi in ``tempo reale'' della situazione delle loro ``porte'' (dato che sono tutte connessioni punto-punto), si richiede l'utilizzo di ulteriori clock per la correttezza dell'albero: uno per i timeout della vitalità della radice ed uno per evitare di utilizzare immediatamente una radice che si ipotizzava fosse morta. L'utilizzo di questi clock creano altri messaggi di saturazione della ``rete emulata'', desincronizzano i vari nodi, e peggiorandone le performance, imponendo necessariamente una potenza di calcolo più grande in quanto non sia una rete fisica.
 
 Nel nostro specifico caso, viene fissato $\bar{\tau} = 2 s$, come timeout  $2*\bar{\tau}$, come timeout per accettare di nuovo la vecchia radice $3*\bar{\tau}$.
 
@@ -575,9 +575,9 @@ Questo thread viene direttamente creato dal modulo di \textit{HB\_in}, ed appena
 Si rimanda al file in \texttt{src/HB\_out.erl} per vedere in dettaglio il suo funzionamento.
 
 \section{Memoria dei parametri (module: state\_server)}
-Ogni nodo, come esplicitato nei requisiti funzionali (paragrado \ref{sec:funcReq}), necessita d'essere programmabile e d'avere un'insieme di variabili di stato proprie. Oltre a questo, abbiamo necessità di conoscere e di poter interpretare delle regole definite all'avvio del nodo. Inoltre, poichè abbiamo a che fare con un'ambiente virtualizzato, necessitiamo di sapere quali sono i vicini con cui collabora.
+Ogni nodo, come esplicitato nei requisiti funzionali (paragrado \ref{sec:funcReq}), necessita d'essere programmabile e d'avere un insieme di variabili di stato proprie. Oltre a questo, abbiamo necessità di conoscere e di poter interpretare delle regole definite all'avvio del nodo. Inoltre, poiché abbiamo a che fare con un ambiente virtualizzato, necessitiamo di sapere quali sono i vicini con cui collabora.
 
-Tutte queste informazioni, come già esplicitato nel capitolo precedente e nei paragrafi precedenti, sono salvate all'interno di uno ``state server'', il quale opera su delle tabelle persistenti, fronteggiate dal supervisor del nodo, al fine di non aver problematiche in caso di fallimenti.
+Tutte queste informazioni, come già esplicitato nel capitolo precedente e nei paragrafi precedenti, sono salvate all'interno di uno ``state server'', il quale opera su delle tabelle persistenti (a meno di un riavvio totale di un nodo), create e fornite dal supervisor del nodo, al fine di non aver problematiche in caso di fallimenti.
 
 Lo state server è incentrato in un'ottica client/server: per questo motivo il suo behavior module è \textit{gen\_server}.
 
@@ -597,11 +597,11 @@ dove ogni campo equivale a:
 
 I valori associati alla terza componente sono strettamente correlati a quanto affrontato nel paragrafo \ref{impl:hbin}: al suo interno troveremo delle tuple con i valori legati allo spanning tree per cui sapremo se inoltrare o meno un messaggio a quel nodo. L'inoltro di un messaggio verso un nodo avviene solo nel caso in cui il vicino sia in stato $active$ o $root\_port$.
 
-I valori associati alla quarto membro della tupla sono invece legati ad informazioni chiave per identificare il nodo di appartenenza. Al suo interno possiamo trovare alcune voci, quali, ad esempio, il suo identificativo univoco, che tipo di nodo è per la rete, quante \textit{``rules wave''} ha visto, il suo clock interno e chi è la sua radice. Queste informazioni sono identificative ed univoche per un nodo, e sono il suo stato interno.
+I valori associati al quarto membro della tupla sono invece legati ad informazioni chiave per identificare il nodo di appartenenza. Al suo interno possiamo trovare alcune voci, quali ad esempio: il suo identificativo univoco, che tipo di nodo è per la rete, quante \textit{``rules wave''} ha visto, il suo clock interno e chi è la sua radice. Queste informazioni sono identificative ed univoche per un nodo, e sono il suo stato interno.
 
-Il significato puntuale della prima e della seconda componente questa tupla verranno affrontati in miglior dettaglio nel paragrafo \ref{impl:rules_worker}. 
+Il significato puntuale della prima e della seconda componente di questa tupla verranno affrontati in miglior dettaglio nel paragrafo \ref{impl:rules_worker}. 
 
-Poichè lo state server è l'unico a poter manipolare le variabili del nodo, al suo interno avrà un piccolo ``interprete'' per manipolare e controllare le variabili. Questo avviene in maniera ricorsiva mediante l'utilizzo di una funzione ricorsiva chiamata ``check\_condition'' (si rimanda all'appendice \ref{code:stateserver} per ulteriori delucidazioni).
+Poiché lo state server è l'unico a poter manipolare le variabili del nodo, al suo interno avrà un piccolo ``interprete'' per manipolare e controllare le variabili. Questo avviene in maniera ricorsiva mediante l'utilizzo di una funzione ricorsiva chiamata ``check\_condition'' (si rimanda all'appendice \ref{code:stateserver} per ulteriori delucidazioni).
 
 \section{Esecutore dei comandi (module: rules\_worker)}\label{impl:rules_worker}
 
