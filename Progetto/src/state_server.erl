@@ -21,7 +21,8 @@
   rules_table,
   neighb_table,
   node_params_table,
-  lost_connections
+  lost_connections,
+  is_tree_stable = false
 }).
 
 %%%===================================================================
@@ -297,7 +298,10 @@ handle_call({reset_tree_state}, _From, State = #server_state{id = Id, neighb_tab
   % resetto gli stati di tutti i vicini
   ets:foldl(fun({Node_id, Node_hb, _}, _Acc) -> ets:insert(NT, {Node_id, Node_hb, disable}) end, ok, NT),
   ets:insert(NpT, {tree_state, {Id, 0, Id}}),
-  {reply, ok, State};
+
+  % faccio partire un timer per vedere se la struttura dell'albero resta stabile
+  erlang:send_after(3000, self(), {tree_state_timeout_ended, {Id, 0, Id}}),
+  {reply, ok, State#server_state{is_tree_stable = false}};
 handle_call({set_tree_state, Tree_state = {Id_root, _Dist, Id_RP}}, _From, State = #server_state{neighb_table = NT, node_params_table = NpT}) ->
   [[{Old_root, _Old_dist, Old_RP}]] = ets:match(NpT, {tree_state, '$1'}), % cerco il vecchio stato dell'albero
   if
@@ -316,7 +320,10 @@ handle_call({set_tree_state, Tree_state = {Id_root, _Dist, Id_RP}}, _From, State
   % cerco e aggiorno lo stato della nuova route port
   [[HB_RP]] = ets:match(NT, {Id_RP, '$1', '_'}),
   ets:insert(NT, {Id_RP, HB_RP, route_port}),
-  {reply, ok, State};
+
+  % faccio partire un timer per vedere se la struttura dell'albero resta stabile
+  erlang:send_after(3000, self(), {tree_state_timeout_ended, Tree_state}),
+  {reply, ok, State#server_state{is_tree_stable = false}};
 handle_call({set_tree_active_port, ID_port}, _From, State = #server_state{neighb_table = NT}) ->
   try
     [[HB_port]] = ets:match(NT, {ID_port, '$1', '_'}),
@@ -333,10 +340,21 @@ handle_call({rm_tree_active_port, ID_port}, _From, State = #server_state{neighb_
     _:_ -> ok
   end,
   {reply, ok, State};
-handle_call({get_active_neighb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini attivi
-  Neighb_list = [Node_ID || {Node_ID, _Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable],
+handle_call({get_active_neighb}, _From, State = #server_state{neighb_table = NT, is_tree_stable = ITS}) ->  % Restituisce la lista dei vicini attivi
+  case ITS of
+    true ->
+      Neighb_list = [Node_ID || {Node_ID, _Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable];
+    false ->
+      Neighb_list = [Node_ID || {Node_ID, _Node_HB_name, Node_state} <- ets:tab2list(NT)]
+  end,
   {reply, {ok, Neighb_list}, State};
-handle_call({get_active_neighb_hb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini attivi
+handle_call({get_active_neighb_hb}, _From, State = #server_state{neighb_table = NT, is_tree_stable = ITS}) ->  % Restituisce la lista dei vicini attivi
+  case ITS of
+    true ->
+      Neighb_hb_list = [Node_HB_name || {_Node_ID, Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable];
+    false ->
+      Neighb_hb_list = [Node_HB_name || {_Node_ID, Node_HB_name, Node_state} <- ets:tab2list(NT)]
+  end,
   Neighb_hb_list = [Node_HB_name || {_Node_ID, Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable],
   {reply, {ok, Neighb_hb_list}, State};
 handle_call({get_ignored_neighb_hb}, _From, State = #server_state{lost_connections = LC}) ->  % Restituisce la lista dei vicini attivi
@@ -352,6 +370,17 @@ handle_cast({ignore_neighb, Neighb}, State = #server_state{neighb_table = NT, lo
 handle_cast(_Msg, State) ->  % per gestire messaggi asyncroni sconosciuti
   {noreply, State}.
 
+handle_info({tree_state_timeout_ended, Old_Tree_state}, State = #server_state{node_params_table = NpT, is_tree_stable = ITS}) ->
+  % quando il timer finisce, controllo se lo stato dell'albero salvato è rimasto lo stesso
+  [[Tree_state]] = ets:match(NpT, {tree_state, '$1'}),
+
+  case Old_Tree_state == Tree_state of
+    true -> % se lo stato vecchio è uguale allora la rete attorno a me è stabile, quindi posso usare l'albero
+      New_ITS = true;
+    false -> % l'albero non è ancora stabile, ci sarà un altro timer in corso
+      New_ITS = ITS
+  end,
+  {noreply, State#server_state{is_tree_stable = New_ITS}};
 handle_info(get_neighb_all, State = #server_state{neighb_table = NT}) -> % debug
   Neighbs = ets:tab2list(NT),
   io:format("Vicini: ~p.~n", [Neighbs]),
