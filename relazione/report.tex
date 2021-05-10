@@ -643,8 +643,9 @@ Le nuove regole attivate devono essere processate prima di eseguire una nuova az
 Al termine di queste operazioni si verifiche se posso eseguire una delle regole nella lista \textit{on\_timer\_hold}: se è possibile vengono estratte le regole interessate e verranno inserite in testa nell'\textit{action\_queue}.
 
 \subsection{Propagazione delle regole}
-{\Huge CHE VUOI DIRE?!?!}\\
-Ad ogni passo processo la regola presente in testa alla coda \textit{priority\_queue} finché non è vuota. Una volta estratta la regola viene eseguito un controllo sulla condizione presente tramite l'utilizzo di una funzione apposita dello \textit{state\_server}: questa inanzitutto controlla se le variabili presenti esistano realmente e se non siano già state modificate da un clock di valore maggiore, infine esegue il controllo vero e prorio della condizione, restituendo se essa è soddisfatta oppure no. In questo caso, diversamente dalle azioni esterne, il clock della regola può andare a modificare variabili con valore di clock di ultima modifica uguale, questo perché il caso in cui più regole vadano ad utilizzare la medesima variabile allo stesso step (per modifiche o condizioni) deve essere una situazione possibile.
+I passi eseguiti per la propoagazione delle regole sono simili a quanto detto nel paragrafo precedente: riassumeremo velocemente l'iter delle azioni compiute.
+Viene estratta una regola presente in testa alla coda \textit{priority\_queue}: si procede quindi a verificare la condizione della stessa tramite una funzione apposita dello \textit{state\_server}. Come prima, si controlla se le variabili presenti esistano realmente e se non siano già state modificate da un clock di valore maggiore, infine si esegue il controllo della condizione, restituendo se essa è soddisfatta o meno.\\
+In questo caso, diversamente dalle azioni interne(?), il clock della regola può modificare le variabili, ed apporrà il valore di clock della regola: in caso in cui più regole vadano ad utilizzare la medesima variabile allo stesso clock (per modifiche o condizioni) è una situazione contemplata.
 
 la regola verrà quindi processata in base al suo tipo:
 \begin{description}
