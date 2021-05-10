@@ -3,6 +3,7 @@
 %% API
 -export([start_link/3]).
 -export([init/3]).
+-export([clean_old_values/2]).
 
 -record(comm_IN_state, {id, server, rules_worker, flood_table}).
 
@@ -12,14 +13,14 @@ start_link(Id, State_server, Rules_worker) ->
 
 init(Id, State_server, Rules_worker) ->
   register(Id, self()),
-  FloodTable = ets:new(flood_table, [ % TODO: mettere un massimo alle tuple salvate
-    set,
+  FloodTable = ets:new(flood_table, [
+    ordered_set,
     public,
     {keypos, 1},
     {heir, none},
-    {write_concurrency, false},
-    {read_concurrency, false},
-    {decentralized_counters, false}
+    {write_concurrency, true},
+    {read_concurrency, true},
+    {decentralized_counters, true}
   ]),
   listen(#comm_IN_state{id = Id, server = State_server, rules_worker = Rules_worker, flood_table = FloodTable}).
 
@@ -101,9 +102,36 @@ listen(State = #comm_IN_state{id = Id, server = Server_name, rules_worker = RW, 
 
 % controllo se il flood arrivato è già stato visto (false) oppure no (true) e lo salvo nella tabella
 check_flood_validity(Type, Flood_clock, Flood_gen, FT) ->
-  case ets:insert_new(FT, {{Type, Flood_clock, Flood_gen}}) of
-    false -> % questa cosa è molto inutile, basta solo chiamare l'insert
-      false;
+  % controllo il numero di elementi della tabella, se sono troppi ne elimino un tot
+  Counter = length(ets:select(FT, [{{'_', '_'}, [], [a]}])),
+  case Counter > 200 of
     true ->
-      true
-  end.
+      spawn(comm_IN, clean_old_values, [FT, 100]);
+    false ->
+      ok
+  end,
+
+  % cerco se il messaggio letto è già stato visto in precedenza
+  Found = ets:select(FT, [{{'$4', {'$1', '$2', '$3'}}, [{'andalso', {'==', '$1', Type}, {'andalso', {'==', '$2', Flood_clock}, {'==', '$3', Flood_gen}}}], ['$4']}]),
+  case length(Found) =/= 0 of
+    true -> % elimino le vecchie occorrenze (dovrebbe essere sempre solo 1)
+      [ets:delete(FT, Elem) || Elem <- Found];
+    false ->
+      ok
+  end,
+
+  % lo inserisco con una chiave monotona crescente per ordinare in base al tempo
+  % anche se c'era già va bene inserirlo di nuovo, in modo da "aggiornare" la chiave
+  ets:insert(FT, {erlang:monotonic_time(), {Type, Flood_clock, Flood_gen}}),
+
+  Found == 0.
+
+%%%===================================================================
+%%% ets cleaning functions
+%%%===================================================================
+
+clean_old_values(Table, Delete_num) when Delete_num > 0 ->
+  ets:delete(Table, ets:first(Table)),
+  clean_old_values(Table, Delete_num - 1);
+clean_old_values(_Table, 0) ->
+  ok.
