@@ -355,7 +355,6 @@ handle_call({get_active_neighb_hb}, _From, State = #server_state{neighb_table = 
     false ->
       Neighb_hb_list = [Node_HB_name || {_Node_ID, Node_HB_name, Node_state} <- ets:tab2list(NT)]
   end,
-  Neighb_hb_list = [Node_HB_name || {_Node_ID, Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable],
   {reply, {ok, Neighb_hb_list}, State};
 handle_call({get_ignored_neighb_hb}, _From, State = #server_state{lost_connections = LC}) ->  % Restituisce la lista dei vicini attivi
   {reply, {ok, LC}, State};
