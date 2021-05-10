@@ -12,7 +12,7 @@
 -export([update_clock/2, get_clock/1, get_rules/1]).
 -export([get_neighb/1, get_neighb_hb/1, add_neighb/2, add_neighbs/2, rm_neighb/2, rm_neighb_with_hb/2, check_neighb/2, get_neighb_map/1]).
 -export([get_tree_state/1, reset_tree_state/1, set_tree_state/2, set_tree_active_port/2, rm_tree_active_port/2]).
--export([get_active_neighb/1, get_active_neighb_hb/1]).
+-export([get_active_neighb/1, get_tree_neighb_hb/1]).
 -export([ignore_neighb/2, get_ignored_neighb_hb/1]).
 
 -record(server_state, {
@@ -120,13 +120,13 @@ rm_tree_active_port(Name, ID_port) ->
 
 
 % Eseguo una chiamata sincrona per ottenre la lista di vicini attivi (con stato active o route_port)
+% se l'albero è stabile, altrimenti tutti i vicini
 get_active_neighb(Name) ->
   gen_server:call(Name, {get_active_neighb}).
 
 % Eseguo una chiamata sincrona per ottenre la lista degli HB dei vicini attivi (con stato active o route_port)
-get_active_neighb_hb(Name) ->
-  gen_server:call(Name, {get_active_neighb_hb}).
-
+get_tree_neighb_hb(Name) ->
+  gen_server:call(Name, {get_tree_neighb_hb}).
 
 % Permette di aggiungere un vicino alla lista di nodi ignorati
 % (funzione utile per siulare una perdita del canale di comunicazione)
@@ -340,21 +340,17 @@ handle_call({rm_tree_active_port, ID_port}, _From, State = #server_state{neighb_
     _:_ -> ok
   end,
   {reply, ok, State};
-handle_call({get_active_neighb}, _From, State = #server_state{neighb_table = NT, is_tree_stable = ITS}) ->  % Restituisce la lista dei vicini attivi
+handle_call({get_active_neighb}, _From, State = #server_state{neighb_table = NT, is_tree_stable = ITS}) ->
+  % Restituisce la lista dei vicini attivi in base alla stabilità dell'albero
   case ITS of
     true ->
       Neighb_list = [Node_ID || {Node_ID, _Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable];
     false ->
-      Neighb_list = [Node_ID || {Node_ID, _Node_HB_name, Node_state} <- ets:tab2list(NT)]
+      Neighb_list = [Node_ID || {Node_ID, _Node_HB_name, _Node_state} <- ets:tab2list(NT)]
   end,
   {reply, {ok, Neighb_list}, State};
-handle_call({get_active_neighb_hb}, _From, State = #server_state{neighb_table = NT, is_tree_stable = ITS}) ->  % Restituisce la lista dei vicini attivi
-  case ITS of
-    true ->
-      Neighb_hb_list = [Node_HB_name || {_Node_ID, Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable];
-    false ->
-      Neighb_hb_list = [Node_HB_name || {_Node_ID, Node_HB_name, Node_state} <- ets:tab2list(NT)]
-  end,
+handle_call({get_tree_neighb_hb}, _From, State = #server_state{neighb_table = NT}) ->  % Restituisce la lista dei vicini attivi
+  Neighb_hb_list = [Node_HB_name || {_Node_ID, Node_HB_name, Node_state} <- ets:tab2list(NT), Node_state =/= disable],
   {reply, {ok, Neighb_hb_list}, State};
 handle_call({get_ignored_neighb_hb}, _From, State = #server_state{lost_connections = LC}) ->  % Restituisce la lista dei vicini attivi
   {reply, {ok, LC}, State};
@@ -369,12 +365,13 @@ handle_cast({ignore_neighb, Neighb}, State = #server_state{neighb_table = NT, lo
 handle_cast(_Msg, State) ->  % per gestire messaggi asyncroni sconosciuti
   {noreply, State}.
 
-handle_info({tree_state_timeout_ended, Old_Tree_state}, State = #server_state{node_params_table = NpT, is_tree_stable = ITS}) ->
+handle_info({tree_state_timeout_ended, Old_Tree_state}, State = #server_state{node_params_table = NpT, is_tree_stable = ITS, id = Id}) ->
   % quando il timer finisce, controllo se lo stato dell'albero salvato è rimasto lo stesso
   [[Tree_state]] = ets:match(NpT, {tree_state, '$1'}),
 
   case Old_Tree_state == Tree_state of
     true -> % se lo stato vecchio è uguale allora la rete attorno a me è stabile, quindi posso usare l'albero
+      io:format("~p : Albero stabilizzato.~n", [Id]),
       New_ITS = true;
     false -> % l'albero non è ancora stabile, ci sarà un altro timer in corso
       New_ITS = ITS

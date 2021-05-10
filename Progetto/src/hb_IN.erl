@@ -249,7 +249,7 @@ listen(State = #hb_state{
 %%        (not Im_root) andalso (Id_root == Id_root_keep_alive) ->
         (Id_root == Id_root_keep_alive) ->
           Is_alive = true,
-          {ok, Neighbs_hb} = state_server:get_active_neighb_hb(Server_name),
+          {ok, Neighbs_hb} = state_server:get_tree_neighb_hb(Server_name),
           spawn(hb_OUT, init, [Server_name, {tree_keep_alive, HB_name, Id_root_keep_alive}, Neighbs_hb -- [HB_sender]]);
         true ->
           Is_alive = Root_alive
@@ -278,7 +278,7 @@ listen(State = #hb_state{
     {tree_root_keep_alive_timer_ended} ->
       if
         Im_root ->
-          {ok, Neighbs_hb} = state_server:get_active_neighb_hb(Server_name),
+          {ok, Neighbs_hb} = state_server:get_tree_neighb_hb(Server_name),
           spawn(hb_OUT, init, [Server_name, {tree_keep_alive, HB_name, Id}, Neighbs_hb]),
           erlang:send_after(2000, self(), {tree_root_keep_alive_timer_ended});
         true ->

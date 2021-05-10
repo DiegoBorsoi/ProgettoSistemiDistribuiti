@@ -8,7 +8,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% client functions
--export([add_neighb/2, ignore_neighb/2]).
+-export([add_neighb/2, ignore_neighb/2, exec_action/3]).
 
 -record(comm_ambiente_state, {
   name,
@@ -34,6 +34,9 @@ add_neighb(Name, {Node_ID, Node_HB_name}) ->
 ignore_neighb(Name, Neighb) ->
   gen_server:cast(Name, {ignore_neighb, Neighb}).
 
+exec_action(Name, Clock, Action) ->
+  gen_server:cast(Name, {exec_action, Clock, Action}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -51,6 +54,9 @@ handle_cast({add_neighb, Node = {_Node_ID, _Node_HB_name}}, State = #comm_ambien
   {noreply, State};
 handle_cast({ignore_neighb, Neighb}, State = #comm_ambiente_state{server_name = Server}) ->
   state_server:ignore_neighb(Server, Neighb),
+  {noreply, State};
+handle_cast({exec_action, Clock, Action}, State = #comm_ambiente_state{rules_worker_name = Rules_worker}) ->
+  rules_worker:exec_action(Rules_worker, normal, Clock, Action),
   {noreply, State};
 handle_cast(_Request, State = #comm_ambiente_state{}) ->
   {noreply, State}.
