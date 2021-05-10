@@ -516,7 +516,9 @@ In questo capitolo tratteremo le scelte implementative avvenute nel corso del pr
 \section{Software e hardware}
 Per l'implementazione non si è seguita una vera e propria scelta hardware, ma si è tenuto conto i vincoli, quali scarsa capacità computazionale e scarsa memoria.
 
-A livello software la scelta è ricaduta su Erlang, in quanto linguaggio fortemente orientato ai threads, funzionale e con spiccata capacità alle connessioni. Altra peculiarità sono le librerie messe a disposizione dallo stesso tramite OTP (Open Telecom Platform). Di queste librerie sfrutteremo fortemente dei ``behavior module'', quali \textit{gen\_server} e \textit{supervisor}, i quali danno a disposizione l'astrazione del meccanismo del client/server e di supervisione dei threads del processo in vita. Essendo fortemente orientato ai threads e funzionale per poter utilizzare dei timer siamo dovuti ricorrere ad un particolare meccanismo: una funzione messa a disposizione da erlang, chiamata \textit{send\_after}, che ci permette di inviare un messaggio ad un modulo passato come parametro dopo un intervallo di tempo specificabile, in questo modo siamo riusciti ad evitare il blocco dell'esecuzione di un processo. I moduli sviluppati più interessanti saranno quindi descritti in dettaglio nei paragrafi successivi.
+A livello software la scelta è ricaduta su Erlang, in quanto linguaggio fortemente orientato ai threads, funzionale e con spiccata capacità alle connessioni. Altra peculiarità sono le librerie messe a disposizione dallo stesso tramite OTP (Open Telecom Platform). Di queste librerie sfrutteremo fortemente dei ``behavior module'', quali \textit{gen\_server} e \textit{supervisor}, i quali danno a disposizione l'astrazione del meccanismo del client/server e di supervisione dei threads del processo in vita. Essendo fortemente orientato ai threads e funzionale per poter utilizzare dei timer siamo dovuti ricorrere ad un particolare meccanismo: una funzione messa a disposizione da erlang, chiamata \textit{send\_after}, che ci permette di inviare un messaggio ad un modulo passato come parametro dopo un intervallo di tempo specificabile, in questo modo siamo riusciti ad evitare il blocco dell'esecuzione di un processo.
+
+I moduli sviluppati più interessanti saranno quindi descritti in dettaglio nei paragrafi successivi.
 
 \section{Utilizzo dei ``Supervisors''}
 Come già accennato, il meccanismo dei supervisor permette di gestire tutti i threads che verranno creati per i vari processi del nodo. Come si può notare in figura \ref{img:struttura_nodo}, abbiamo due supervisor: uno principale che rappresenta il vero e proprio nodo ed un secondo per mantenere la vitalità di tutti i processi interni legati alla comunicazione (dal modulo ``rules\_worker'' al più semplice ``HB\_out'').
@@ -529,12 +531,12 @@ Codice d'esempio si trova nell'appendice \ref{code:supervisor}.
 Come descritto precedentemente, nel modulo \textit{HB\_in} possiamo trovare tutti i meccanismi legati alla gestione della rete e delle sue funzionalità come tale. Nello specifico, questo si occupa solamente di controllare la ``vitalità'' di un nodo e di creare un albero di copertura della rete stabile, con tutti i suoi protocolli annessi.
 
 \subsection{Heartbeat - consistenza della rete}
-La prima funzionalità (appunto, garantire la consistenza della rete), serve a garantire che se un nodo a me vicino si spenga o diventi non più raggiungibile, allora non devo più considerarlo come mio vicino. La consistenza della rete avviene tramite alcune variabili di stato interne al modulo, identificabili dalla tupla:
+La prima funzionalità (appunto, garantire la consistenza della rete), serve a garantire che se un nodo a me vicino si spenga o diventi non più raggiungibile, allora non debba più considerarlo come mio vicino. La consistenza della rete avviene tramite alcune variabili di stato interne al modulo, identificabili dalla tupla:
 $$
     <neighb\_clocks, neighb\_state>
 $$
-Il primo valore della tupla identifica una mappa di tipo $<id,clock>$, e mi serve nel momento in cui ho un aggiornamento del clock interno dovuto al ricongiungimento di una rete partizionata: per cercar di garantire la consistenza delle wave di regole che si propagheranno nella rete, dovrò cercare di allineare tutti i componenti della rete al medesimo clock.
-Il secondo valore della tupla identifica una mappa del tipo $<id,stato>$: per controllare la vitalità di un nodo devo infatti verificarne la sua presenza attraverso il meccanismo di ``echo'' descritto nel paragrafo \ref{heartbeat}. Alla creazione del nodo suppongo che tutti i miei vicini siano ``vivi'', e sono tali fino a prova contraria (ovvero quando non rispondono più agli echo). Gli \emph{stati} assumibili dai vicini in questa mappa quindi saranno:
+Il primo valore della tupla identifica una mappa di tipo $<id, clock>$, e mi serve nel momento in cui avviene un aggiornamento del clock interno dovuto al ricongiungimento di una rete partizionata: per cercar di garantire la consistenza delle wave di regole che si propagheranno nella rete, dovrò cercare di allineare tutti i componenti della rete al medesimo clock.
+Il secondo valore della tupla identifica una mappa del tipo $<id, stato>$: per controllare la vitalità di un nodo devo infatti verificarne la sua presenza attraverso il meccanismo di ``echo'' descritto nel paragrafo \ref{heartbeat}. Alla creazione del nodo suppongo che tutti i miei vicini siano ``vivi'', e saranno considerati tali fino a prova contraria (ovvero quando non risponderanno più agli echo). Gli \emph{stati} assumibili dai vicini in questa mappa quindi saranno:
 $$
 stato(\eta:neightboard)=\begin{cases}
                          alive, & \mbox{se }\eta\mbox{ ha risposto all'ultimo echo} \\
@@ -560,9 +562,9 @@ Per ulteriori delucidazioni su come vengono intraprese le scelte si rimanda al p
 
 La necessità di avvisare i nodi vicini che li usiamo come root port o meno nasce dalla particolare situazione in cui ci troviamo: poiché non abbiamo un vero e proprio ambiente dove un nodo non designato al raggiungimento della radice comunica con tutti i nodi di quella zona, siamo costretti ad avvisare se un nodo è una root\_port o meno. Questo passaggio complica la rete, in quanto crea un ``overhead'' di messaggi normalmente non contemplato dal protocollo originale.
 
-Ulteriormente, poichè tutti i nodi non possono accorgersi in ``tempo reale'' della situazione delle loro ``porte'' (dato che sono tutte connessioni punto-punto), si richiede l'utilizzo di ulteriori clock per la correttezza dell'albero: uno per i timeout della vitalità della radice ed uno per evitare di utilizzare immediatamente una radice che si ipotizzava fosse morta. L'utilizzo di questi clock creano altri messaggi di saturazione della ``rete emulata'', desincronizzano i vari nodi, e peggiorandone le performance, imponendo necessariamente una potenza di calcolo più grande in quanto non sia una rete fisica.
+Ulteriormente, poichè tutti i nodi non possono accorgersi in ``tempo reale'' della situazione delle loro ``porte'' (dato che sono tutte connessioni punto-punto), si richiede l'utilizzo di ulteriori clock per la correttezza dell'albero: uno per i timeout della vitalità della radice ed uno per evitare di utilizzare immediatamente una radice che si ipotizzava fosse morta. L'utilizzo di questi clock creano altri messaggi di saturazione della ``rete emulata'', desincronizzano i vari nodi, peggiorandone le performance, ed imponendo necessariamente una potenza di calcolo più grande in quanto non sia una rete fisica.
 
-Nel nostro specifico caso, viene fissato $\bar{\tau} = 2 s$, come timeout  $2*\bar{\tau}$, come timeout per accettare di nuovo la vecchia radice $3*\bar{\tau}$.
+Nel nostro specifico caso, viene fissato $\bar{\tau} = 2 s$ per il messaggio di vitalità della radice, $2*\bar{\tau}$ come timeout,  $3*\bar{\tau}$ come timeout per accettare di nuovo la vecchia radice.
 
 \subsection{Heartbeat - comunicazioni in uscita}
 Per le comunicazioni in uscita, come possiamo notare da alcune linee di codice dell'appendice \ref{code:heartbeat}, interpelliamo il modulo \textit{HB\_out}: questo modulo gestisce le comunicazioni in uscita, compresi gli errori di comunicazione. Parametri richiesti per la comunicazione verso l'esterno sono:
@@ -576,16 +578,16 @@ Si rimanda al file in \texttt{src/HB\_out.erl} per vedere in dettaglio il suo fu
 
 \section{Comunicazione coi vicini (module: comm\_IN)}
 
-La comunicazione con i vicini delle regole da eseguire avviene tramite l'utilizzo dei moduli \textit{comm\_IN} e \textit{comm\_OUT}.
+La comunicazione delle regole da eseguire con i vicini avviene tramite l'utilizzo dei moduli \textit{comm\_IN} e \textit{comm\_OUT}.
 \begin{description}
-\item[\textit{comm\_IN}]: questo modulo si trova perennemente in uno stato di ricezione, in modo tale da processare in continuazione tutti i messaggi inviati dai vicini. In particolare il modulo in questione gestisce l'algoritmo di \textit{flooding}; per fare ciò genera al suo avvio una tabella (\textit{ets}) per il salvataggio ed il controllo dei messaggi. Nel momento in cui arriva un messaggio di \textit{flood} questo viene controllato, tramite la tabella, per decidere se sia un nuovo messaggio oppure uno già visto in precedenza: nel secondo caso il messaggio viene ignorato, altrimenti viene processato tramite il modulo apposito (\textit{rules\_worker}) e poi inviato ai vicini, escludendo chi l'aveva inviato.
+\item[\textit{comm\_IN}]: questo modulo si trova perennemente in uno stato di ricezione, in modo da processare nel minor tempo possibile tutti i messaggi ricevuti dai vicini. In particolare  gestisce l'algoritmo di \textit{flooding}: per fare ciò genera al suo avvio una tabella (\textit{ets}) per il salvataggio ed il controllo dei messaggi. Nel momento in cui arriva un messaggio di \textit{flood} questo viene controllato, tramite la tabella, per decidere se sia un nuovo messaggio oppure uno già visto in precedenza: nel secondo caso il messaggio viene ignorato, altrimenti viene processato tramite il modulo apposito (\textit{rules\_worker}, trattato al paragrafo \ref{impl:rules_worker}) e poi inviato ai vicini, escludendo chi l'aveva inviato. %TODO: ma non invia e poi processa?
 \item[\textit{comm\_OUT}]: questo modulo è strutturato quasi identicamente a quello di \textit{HB\_OUT}, viene infatti utilizzato da \textit{comm\_IN} per inviare messaggi ai vicini gestendo possibili errori di comunicazione e alla conclusione cessa di esistere.
 \end{description}
 
 \section{Memoria dei parametri (module: state\_server)}
-Ogni nodo, come esplicitato nei requisiti funzionali (paragrado \ref{sec:funcReq}), necessita d'essere programmabile e d'avere un insieme di variabili di stato proprie. Oltre a questo, abbiamo necessità di conoscere e di poter interpretare delle regole definite all'avvio del nodo. Inoltre, poiché abbiamo a che fare con un ambiente virtualizzato, necessitiamo di sapere quali sono i vicini con cui collabora.
+Ogni nodo, come esplicitato nei requisiti funzionali (paragrado \ref{sec:funcReq}), necessita d'essere programmabile e d'avere un insieme di variabili di stato proprie. Oltre a questo, si ha la necessità di conoscere e di poter interpretare delle regole definite all'avvio del nodo. Oltretutto, poiché si ha a che fare con un ambiente virtualizzato, necessitiamo di sapere quali sono i vicini con cui collabora.
 
-Tutte queste informazioni, come già esplicitato nel capitolo precedente e nei paragrafi precedenti, sono salvate all'interno di uno ``state server'', il quale opera su delle tabelle persistenti (a meno di un riavvio totale di un nodo), create e fornite dal supervisor del nodo, al fine di non aver problematiche in caso di fallimenti.
+Tutte queste informazioni, come già esplicitato nel capitolo precedente e nei paragrafi precedenti, sono salvate all'interno di uno ``state server'', il quale opera su delle tabelle persistenti (a meno di un riavvio totale del un nodo), create e fornite dal supervisor del nodo, al fine di non aver problematiche in caso di fallimenti.
 
 Lo state server è incentrato in un'ottica client/server: per questo motivo il suo behavior module è \textit{gen\_server}.
 
@@ -603,14 +605,14 @@ dove ogni campo equivale a:
     \item \textit{node\_params\_table}: tabella dei parametri interni al nodo.
 \end{itemize}
 
-La prima tabella contiene una tupla per ogni variabile legata al tipo del nodo. In ogni elemento sarà quindi salvato il nome della variabile, il suo valore attuale ed infine un ulteriore parametro che indica il valore del clock associato all'ultima azione che ha modificato tale variabile. Quest'ultimo campo permette di mantenere un ordine causale degli eventi: quando un'azione deve essere eseguita viene controllato che le variabili utilizzate, sia nelle condizioni/guardie che negli assegnamenti, non abbiano un valore del clock di ultima modifica maggiore o uguale a quello dell'azione in questione; questo permette di evitare che un evento ``vecchio'' arrivato in ritardo in un nodo non sovrascriva cambiamenti indotti da eventi più nuovi. 
+La prima tabella contiene una tupla per ogni variabile: il nome ed il valore iniziale dipende dal tipo del nodo. Di ogni elemento sarà quindi salvato il nome della variabile, il suo valore attuale ed infine un ulteriore parametro che indica il valore del clock associato all'ultima azione che ha modificato tale variabile. Quest'ultimo campo permette di mantenere un ordine causale degli eventi: quando un'azione deve essere eseguita viene controllato che le variabili utilizzate, sia nelle condizioni/guardie, che negli assegnamenti, non abbiano un valore di clock di ultima modifica maggiore o uguale a quello dell'azione in questione. Questa scelta permette di evitare che un evento ``vecchio'', arrivato in ritardo in un nodo, non sovrascriva cambiamenti indotti da eventi più recenti. 
 
-Nella seconda tabella sono invece presenti tutte le regole legate al tipo del nodo in questione. L'utilizzo di queste tuple verrà affrontato in miglior dettaglio nel paragrafo \ref{impl:rules_worker}.
-La struttura delle regole è presentata in un file apposito (\textit{rules\_expl} \ref{code:rulesstruct}). % TODO: codice di rules_expl
+Nella seconda tabella sono presenti tutte le regole legate al tipo del nodo in questione. L'utilizzo di queste tuple verrà affrontato in miglior dettaglio nel paragrafo \ref{impl:rules_worker}.
+La struttura delle regole è presentata in un file apposito (\textit{rules\_expl} \ref{code:rulesstruct}).
 
 Gli elementi di queste due prime tabelle vengono inseriti alla creazione del nodo: all'avvio di un nodo del tipo \textit{type} viene cercato e caricato il file \textit{<type>\_rules.txt} il quale contiene la lista delle variabili ed una lista di regole di quel specifico tipo di nodo. Se il file non viene trovato, viene caricato quello per un nodo di tipo \textit{default}.
 
-I valori associati alla terza componente sono strettamente correlati a quanto affrontato nel paragrafo \ref{impl:hbin}: al suo interno troveremo delle tuple con i valori legati allo spanning tree per cui sapremo se inoltrare o meno un messaggio a quel nodo. L'inoltro di un messaggio verso un nodo avviene solo nel caso in cui il vicino sia in stato $active$ o $root\_port$.
+I valori associati alla terza componente sono strettamente correlati a quanto affrontato nel paragrafo \ref{impl:hbin}: al suo interno troveremo delle tuple con i valori legati allo spanning tree tali da poter sapere se inoltrare o meno un messaggio a quel nodo. L'inoltro di un messaggio verso un nodo avviene solo nel caso in cui il vicino sia in stato $active$ o $root\_port$.
 
 I valori associati al quarto membro della tupla sono invece legati ad informazioni chiave per identificare il nodo di appartenenza. Al suo interno possiamo trovare alcune voci, quali ad esempio: il suo identificativo univoco, che tipo di nodo è per la rete, quante \textit{``rules wave''} ha visto, il suo clock interno e chi è la sua radice. Queste informazioni sono identificative ed univoche per un nodo, e sono il suo stato interno.
 
@@ -618,38 +620,45 @@ Poiché lo state server è l'unico a poter manipolare le variabili del nodo, al 
 
 \section{Esecutore dei comandi (module: rules\_worker)}\label{impl:rules_worker}
 
-Questo modulo, come accennato nei paragrafi precedenti, si occupa dello smaltimento delle azioni ricevute dai nodi vicini (tramite il modulo \textit{communication~in}) e di gestire la logica di esecuzione delle varie regole che possono venir attivate.
+Questo modulo, come accennato nei paragrafi precedenti, si occupa dello ``smistamento'' delle azioni ricevute dai nodi vicini (tramite il modulo \textit{communication\_in}) e di gestire la logica di attivazione delle regole che possono attivarsi.
 
-Il modulo fornisce una funzione apposita (\textit{exec\_action}) per permettere ad un qualsiasi altro modulo del nodo (in questo caso solamente \textit{communication~in} e \textit{communication~ambiente}) di inviare ad esso un'azione da eseguire. Una volta ricevuta un'azione, viene eseguito un controllo del valore del clock legato ad essa: se il clock ricevuto fosse maggiore del valore aspettatosi dal nodo (cioè il valore di clock salvato + 1), l'azione viene inserita in una lista di attesa (\textit{on\_timer\_hold}, presente nello stato interno del modulo) nella quale rimarrà finché non vengono eseguite le azioni mancanti, che quindi porterebbero il valore atteso dal nodo a quello in questione, oppure finché non viene a scadere un timer apposito istanziato nel momento in cui l'azione veniva aggiunta alla lista. % TODO: durata timer
-Nel momento in cui un'azione ricevuta possiede un valore di clock minore o uguale al valore atteso dal nodo, oppure è stata appena estratta dalla lista \textit{on\_timer\_hold}, viene inserita in una coda di esecuzione (\textit{action\_queue}) aggiornando il valore di clock del nodo in accordo; questa coda a questo punto verrà smaltita da una funzione apposita del nodo, il quale quindi potrà continuare ad eseguire i calcoli necessari senza bloccare la possibilità di ricevere ulteriori azioni dai nodi vicini. 
+Il modulo fornisce una funzione apposita (\textit{exec\_action}) la quale permettere ad un qualsiasi altro modulo del nodo (in questo caso solamente \textit{communication\_in} e \textit{communication\_ambiente}) di inviare ad esso un'azione da eseguire. Una volta ricevuta un'azione, viene eseguito il controllo del valore del clock legato ad essa: se il clock ricevuto fosse maggiore del valore previsto dal nodo (cioè il valore di clock salvato $+ 1$), l'azione viene inserita in una lista di attesa (\textit{on\_timer\_hold}, presente nello stato interno del modulo) nella quale rimarrà finché non vengono eseguite le azioni mancanti, le quali porterebbero il valore atteso dal nodo a quello in questione, oppure finché non scade l'apposito timer istanziato nel momento in cui l'azione veniva aggiunta alla lista.\\ % TODO: durata timer
+Nel momento in cui un'azione ricevuta possieda un valore di clock minore o uguale al valore atteso dal nodo, oppure è stata appena estratta dalla lista \textit{on\_timer\_hold}, viene inserita in una coda di esecuzione (\textit{action\_queue}) aggiornando il valore di clock del nodo in accordo. Questa coda verrà svuotata da una routine apposita, mentre il nodo potrà continuare ad eseguire i calcoli necessari, senza bloccare la possibilità di ricevere ulteriori azioni dai nodi vicini. 
 
-Per processare le varie azioni inserite nella coda viene utilizzato un messaggio apposito internamente al modulo (\textit{handle\_next\_action}): appena prima di inserire una nuova azione nella coda viene controllato se questa sia vuota, in caso affermativo il modulo invia a se stesso il messaggio in questione, altrimenti no. Questo permette di avere sempre solamente un messaggio di questo tipo nella coda di ricezione del modulo e garantisce che la coda delle azioni contenga almeno un elemento quando andiamo a processare questo messaggio. Nel momento in cui finisco di processare un'azione estratta dalla testa della coda, vado nuovamente a controllare se questa sia vuota per decidere se inviarmi ulteriormente il messaggio oppure no.
+Per processare le varie azioni inserite nella coda viene utilizzato un segnale apposito interno al modulo (\textit{handle\_next\_action}): nel momento in cui si sta inserire una nuova azione nella coda si controlla se questa sia vuota, e, in caso affermativo, il modulo si invia il messaggio in questione. Questo meccanismo permette d'avere sempre e solo un segnale di questo tipo. Nel momento in cui si finisce di processare un'azione estratta dalla testa della coda, si procede, eventualmente, ad eseguire la prossima azione ``rinviandosi'' il messaggio di prima, fino all'esaurimento della stessa.
 
 
 \subsection{Esecuzione di un'azione}
 
-Finché la coda \textit{action\_queue} non è vuota, vado ad estrarre la prossima azione da processare dalla sua testa. A questo punto viene utilizzata una funzione apposita messa a disposizione dallo \textit{state\_server} la quale mi permette di inviare l'azione da eseguire e ricevere in ritorno una lista di regole che si sono attivate. Questa funzione va a controllare se le variabili presenti nella guardia e nelle vere e proprie istruzioni dell'azione siano eseguibili, cioé controlla inizialmente che i nomi delle variabili siano presenti e poi che il valore di ultima modifica salvato per ogni variabile non sia maggiore o uguale al valore di clock legato all'azione in questione. In caso di risultato positivo viene controllato il valore della guardia e se questa è soddisfatta vengono eseguite le varie istruzioni di modifica delle variabili. Una volta eseguita l'azione lo \textit{state\_server} cerca quindi tutte le regole che vengono attivate dalle modificihe appena eseguite (cioè se tutti i trigger siano stati attivati) e le restituisce sotto forma di lista.
+Finché la coda \textit{action\_queue} non è vuota, vado ad estrarre la prossima azione da processare dalla sua testa. L'azione estratta verrà inoltrata allo state server tramite funzione apposita: questo, al termine della stessa, mi restituirà un'elenco delle variabili modificate. Questa funzione, prima di procedere con l'esecuzione dell'azione richiesta, controlla se le variabili presenti nella guardia e nelle istruzioni dell'azione siano eseguibili. Gli step per eseguire un'azione sono:
+\begin{enumerate}
+    \item si controlla inizialmente che i nomi delle variabili siano presenti come variabili locali;
+    \item si verifica che il valore di ultima modifica di ogni variabile non sia maggiore o uguale al valore di clock legato all'azione in questione;
+    \item si verifica la soddisfacibilità del valore di guardia dell'azione.
+\end{enumerate}
+In caso di valutazione positiva di tutti i passi, verranno eseguite le varie istruzioni richieste dall'azione. Una volta terminata l'azione lo \textit{state\_server} cerca tutte le regole che vengono attivate dalle modifiche appena eseguite (ovvero, se tutti i valori di trigger sono soddisfatti) e le restituisce sotto forma di lista.
 
-A questo punto le regole che sono state attivate devono essere processate prima di eseguire una nuova azione, perciò vengono inserite in una coda prioritaria \textit{priority\_queue} che verrà sempre elaborata a step come per l'\textit{action\_queue} ma avendo precedenza su quest'ultima.
+Le nuove regole attivate devono essere processate prima di eseguire una nuova azione: per questo motivo verranno inserite in una coda prioritaria (\textit{priority\_queue}). Questa coda viene eseguita in egual maniera rispetto alla \textit{action\_queue}, ma ha la precedenza rispetto a questa.
 
-Infine viene eseguito un controllo della lista \textit{on\_timer\_hold} per estrarre tutte quelle azioni che stavano aspettando l'esecuzione di un'azione con valore di clock uguale a quello appena processato, per poi venir inserite nell'\textit{action\_queue}. 
+Al termine di queste operazioni si verifiche se posso eseguire una delle regole nella lista \textit{on\_timer\_hold}: se è possibile vengono estratte le regole interessate e verranno inserite in testa nell'\textit{action\_queue}.
 
 \subsection{Propagazione delle regole}
-
+{\Huge CHE VUOI DIRE?!?!}\\
 Ad ogni passo processo la regola presente in testa alla coda \textit{priority\_queue} finché non è vuota. Una volta estratta la regola viene eseguito un controllo sulla condizione presente tramite l'utilizzo di una funzione apposita dello \textit{state\_server}: questa inanzitutto controlla se le variabili presenti esistano realmente e se non siano già state modificate da un clock di valore maggiore, infine esegue il controllo vero e prorio della condizione, restituendo se essa è soddisfatta oppure no. In questo caso, diversamente dalle azioni esterne, il clock della regola può andare a modificare variabili con valore di clock di ultima modifica uguale, questo perché il caso in cui più regole vadano ad utilizzare la medesima variabile allo stesso step (per modifiche o condizioni) deve essere una situazione possibile.
 
-A questo punto la regola viene processata in base al suo tipo:
+la regola verrà quindi processata in base al suo tipo:
 \begin{description}
-\item[Locale] l'azione associata viene trattata come fosse una normale azione da eseguire: viene quindi chiamata l'apposita funzione dello \textit{state\_server}, il quale restituisce la lista di regole attivate che a loro volta verranno inserite nella \textit{priority\_queue}. Queste nuove regole devono essere inserite in testa alla coda, in questo modo elaboro prima gli effetti causati dalla regola appena processata, piuttosto che le altre regole già presenti.
+\item[Locale] l'azione associata viene trattata come fosse una normale azione da eseguire: viene chiamata l'apposita funzione dello \textit{state\_server}, il quale restituisce la lista di regole attivate e che a loro volta verranno inserite nella \textit{priority\_queue}. Queste nuove regole devono essere inserite in testa alla coda, in questo modo elaborare prima gli effetti causati dalla regola appena processata.
 \item[Globale] in questo caso l'azione associata non deve essere eseguita internamente dal nodo in questione, ma deve essere propagata ai vicini creando un nuovo \textit{flooding} utilizzando il valore di clock adeguato.
-\item[Transazione] in questo caso la regola genera una transazione, perciò inizio inviando il messaggio di richiesta. A questo punto lo \textit{rules\_worker} deve controllare se è anch'esso un partecipante della transazione, cioè la guardia dell'azione associata è soddisfatta: in caso affermativo viene bloccato il processamento delle due code per dedicarsi totalmente ad essa; se invece non è un partecipante, può procedere con il normale processamente, gestendo però in simultanea lo svolgimento della transazione. La gestione dello stato del modulo viene eseguita tramite l'utilizzo di una variabile di stato che indica in quale momento della transazione mi trovo:
+\item[Transazione] la regola estratta genera una transazione. Si procede inviando alla rete il messaggio di proposta di transazione. Lo \textit{rules\_worker} del nodo ricevente il messaggio di proposta deve controllare se è anch'esso può partecipare alla transazione: in caso affermativo viene bloccata l'esecuzione delle regole nelle code per dedicarsi solamente a questa, mentre, se decreta di non essere un partecipante, può procedere con la normale esecuzione, garantendo ai nodi terzi lo svolgimento della transazione.\\
+Lo stato del modulo viene controllato tramite l'ausilio di una variabile di stato, la quale indica in quale momento della transazione mi trovo:
 \begin{itemize}
 \item $\{none\}$: non mi trovo in una transazione.
 \item $\{started\_transaction, Transact\_clock, Partecipants, Action\}$: ho iniziato una nuova transazione, quindi aspetto le risposte dei nodi che vogliono partecipare aggiungendoli alla lista $Partecipants$ finché non scade il timer associato.
 \item $\{waiting\_commit, Id\_gen, Transact\_clock, Action\}$: ho risposto ad una richiesta di transazione dicendo di voler partecipare, aspetto il messaggio di commit o la fine del timer apposito.
 \end{itemize}
 
-Nel caso in cui la transazione vada a buon fine, l'azione viene eseguita utilizzando la medesima sequenza di comandi usata nei casi precedenti: utilizzo la funzione fornita dallo \textit{state\_server}, ricevo le regole che si sono attivate e le inserisco in \textit{priority\_queue} ed infine aggiorno \textit{on\_timer\_hold}.
+Nel caso in cui la transazione vada a buon fine, l'azione viene eseguita utilizzando la medesima sequenza di comandi usata nei casi precedenti. Una spiegazione grafica sulla ``vita'' di una transazione la si può vedere in figura \ref{img:transazioni}.
 
 \end{description}
 
@@ -734,11 +743,35 @@ handle_info({start_discovery}, State = #comm_ambiente_state{server_name = SN, hb
 %Check if requirements from Chapter~\ref{ch:analysis} have been fulfilled.
 %Quantitative tests (simulations) and screenshots of the interfaces are put here.
 
+%\chapter*{Evaluation}
+%Your system will be judged mainly on how it operates as a distributed system. The
+%	   primary evaluation will be according to whether your system has the following
+%	   attributes:
+%\begin{itemize}
+%\item  It should be an interesting distributed system, making use of some of the
+%	   algorithms we have covered in class for distributed synchronization, replication,
+%	   fault tolerance and recovery, security, etc.
+%\item The software should be well designed and well implemented, in terms of the
+%	   overall architecture and the detailed realization.
+%\item You should devise and apply systematic testing procedures, at both the unit
+%	   and systems levels.
+%\item The system should operate reliably and with good performance, even in the
+%	   face of failures.
+%\end{itemize}
+%Important, but secondary considerations include:
+%\begin{itemize}
+%\item Time taken to do the project (the sooner the better, but do not miss details
+%	   in order to end sooner)
+%\item  How nice is the application's appearance: does it have a nice interface or
+%	   a compelling visual display?
+%\end{itemize}
 
 %\chapter{Conclusions}
 %
 %What has been done with respect to what has been promised in Chapters~\ref{ch:intro}
 %	   and \ref{ch:analysis}, and what is left out.
+
+
 
 %\appendix
 %
@@ -950,28 +983,74 @@ enter_network(Neighbs, _State = #hb_state{id = Id, hb_name = HB_name, server_nam
       listen(State#hb_state{i_am_root = New_Im_root, is_root_alive = New_is_alive});
 \end{minted}
 
-%\chapter*{Evaluation}
-%Your system will be judged mainly on how it operates as a distributed system. The
-%	   primary evaluation will be according to whether your system has the following
-%	   attributes:
-%\begin{itemize}
-%\item  It should be an interesting distributed system, making use of some of the
-%	   algorithms we have covered in class for distributed synchronization, replication,
-%	   fault tolerance and recovery, security, etc.
-%\item The software should be well designed and well implemented, in terms of the
-%	   overall architecture and the detailed realization.
-%\item You should devise and apply systematic testing procedures, at both the unit
-%	   and systems levels.
-%\item The system should operate reliably and with good performance, even in the
-%	   face of failures.
-%\end{itemize}
-%Important, but secondary considerations include:
-%\begin{itemize}
-%\item Time taken to do the project (the sooner the better, but do not miss details
-%	   in order to end sooner)
-%\item  How nice is the application's appearance: does it have a nice interface or
-%	   a compelling visual display?
-%\end{itemize}
+\chapter{Struttura delle regole}\label{code:rulesstruct}
+\begin{minted}[
+frame=lines,
+framesep=2mm,
+baselinestretch=1.2,
+fontsize=\footnotesize,
+linenos=true, %samepage=true
+]{ini}
+File di esempio e spiegazione regole
+
+Variabili:
+[
+   {var,val}: variabile, valore iniziale
+   [...]
+}
+
+REGOLA LOCALE
+{
+    TIPO:
+        local: regola che fa qualcosa solo nel nodo
+    ,
+    TRIGGER: eventi che servono per attivare la regola
+    [
+        var1, var2, var3,...
+    ]
+    ,
+    CONDIZIONI:
+    {
+        COND:
+            op         : operazione della condizione (lt, lte, gt, gte, eq, neq)
+            var1, var2 : variabili di stato coinvolte
+        OR             **forse lo implementiamo**
+            binop            : {and,or,not}
+            {COND1}, {COND2} : lista di cond
+    },
+    AZIONE:
+    [ {var,val} ] : che variabile deve essere settata a cosa
+}
+
+REGOLA GLOBALE/TRANSAZIONE
+{
+    TIPO:
+        global:      regola che si propaga nella rete
+        transaction: regola che chiede di eseguire qualcosa assieme
+    ,
+    TRIGGER: eventi che servono per attivare la regola
+    [
+        var1, var2, var3,...
+    ]
+    ,
+    CONDIZIONI:
+    {
+        COND:
+            op         : operazione della condizione (lt, lte, gt, gte, eq, neq)
+            var1, var2 : variabili di stato coinvolte
+        OR             **forse lo implementiamo**
+            binop            : {land,lor,lnot}
+            {COND1}, {COND2} : lista di cond
+    },
+    AZIONE:
+    {
+        { GUARDIE }: condizioni di guardia per l'esecuzione delle azioni descritte successivamente
+        [ {var,val} ] : che variabile deve essere settata a cosa
+
+        GUARDIE: come condizioni, ma le operazioni sono (lt, lte, gt, gte, eq, neq, tpe, ntp)
+    }
+}
+\end{minted}
 
 \chapter{Memoria dei parametri}\label{code:stateserver}
 \begin{minted}[
@@ -1080,6 +1159,5 @@ check_condition(Cond, VT, PT) ->
       false
   end.
 \end{minted}
-
 
 \end{document}
