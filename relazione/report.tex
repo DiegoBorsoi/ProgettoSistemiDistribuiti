@@ -603,11 +603,16 @@ dove ogni campo equivale a:
     \item \textit{node\_params\_table}: tabella dei parametri interni al nodo.
 \end{itemize}
 
+La prima tabella contiene una tupla per ogni variabile legata al tipo del nodo. In ogni elemento sarà quindi salvato il nome della variabile, il suo valore attuale ed infine un ulteriore parametro che indica il valore del clock associato all'ultima azione che ha modificato tale variabile. Quest'ultimo campo permette di mantenere un ordine causale degli eventi: quando un'azione deve essere eseguita viene controllato che le variabili utilizzate, sia nelle condizioni/guardie che negli assegnamenti, non abbiano un valore del clock di ultima modifica maggiore o uguale a quello dell'azione in questione; questo permette di evitare che un evento ``vecchio'' arrivato in ritardo in un nodo non sovrascriva cambiamenti indotti da eventi più nuovi. 
+
+Nella seconda tabella sono invece presenti tutte le regole legate al tipo del nodo in questione. L'utilizzo di queste tuple verrà affrontato in miglior dettaglio nel paragrafo \ref{impl:rules_worker}.
+La struttura delle regole è presentata in un file apposito (\textit{rules\_expl} \ref{code:rulesstruct}). % TODO: codice di rules_expl
+
+Gli elementi di queste due prime tabelle vengono inseriti alla creazione del nodo: all'avvio di un nodo del tipo \textit{type} viene cercato e caricato il file \textit{<type>\_rules.txt} il quale contiene la lista delle variabili ed una lista di regole di quel specifico tipo di nodo. Se il file non viene trovato, viene caricato quello per un nodo di tipo \textit{default}.
+
 I valori associati alla terza componente sono strettamente correlati a quanto affrontato nel paragrafo \ref{impl:hbin}: al suo interno troveremo delle tuple con i valori legati allo spanning tree per cui sapremo se inoltrare o meno un messaggio a quel nodo. L'inoltro di un messaggio verso un nodo avviene solo nel caso in cui il vicino sia in stato $active$ o $root\_port$.
 
 I valori associati al quarto membro della tupla sono invece legati ad informazioni chiave per identificare il nodo di appartenenza. Al suo interno possiamo trovare alcune voci, quali ad esempio: il suo identificativo univoco, che tipo di nodo è per la rete, quante \textit{``rules wave''} ha visto, il suo clock interno e chi è la sua radice. Queste informazioni sono identificative ed univoche per un nodo, e sono il suo stato interno.
-
-Il significato puntuale della prima e della seconda componente di questa tupla verranno affrontati in miglior dettaglio nel paragrafo \ref{impl:rules_worker}. 
 
 Poiché lo state server è l'unico a poter manipolare le variabili del nodo, al suo interno avrà un piccolo ``interprete'' per manipolare e controllare le variabili. Questo avviene in maniera ricorsiva mediante l'utilizzo di una funzione ricorsiva chiamata ``check\_condition'' (si rimanda all'appendice \ref{code:stateserver} per ulteriori delucidazioni).
 
