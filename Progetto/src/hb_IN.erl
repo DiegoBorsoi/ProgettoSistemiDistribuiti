@@ -201,8 +201,6 @@ listen(State = #hb_state{
         (Saved_root > Id_root) andalso (Oldroot =/= Id_root) ->
           % aggiorno lo lo stato dell'albero salvato
           state_server:set_tree_state(Server_name, {Id_root, Dist + 1, Id_sender}),
-% avviso la nuova route port che la uso come tale
-          spawn(hb_OUT, init, [Server_name, {tree_ack, Id}, [HB_sender]]),
 % avviso la vecchia route port che non la uso più
           if
             Saved_RP == Id ->
@@ -210,6 +208,8 @@ listen(State = #hb_state{
             true ->
               spawn(hb_OUT, init, [Server_name, {tree_rm_rp, Id}, [maps:get(Saved_RP, Neighbs_map)]])
           end,
+% avviso la nuova route port che la uso come tale
+          spawn(hb_OUT, init, [Server_name, {tree_ack, Id}, [HB_sender]]),
 % avviso i vicini che ho cambiato porta
           spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Id_root, Dist + 1, Id}}, Neighbs_hb -- [HB_sender]]),
           New_Im_root = false,
@@ -243,7 +243,7 @@ listen(State = #hb_state{
 %%% Distributed Spanning Tree timers handling
 %%%=================================================================================================================
     {tree_keep_alive, HB_sender, Id_root_keep_alive} -> % messaggio della radice che dice di essere viva
-      io:format("~p: Ricevuto is_root_alive(~p) da ~p: i'm root (~p).~n", [Id, Id_root_keep_alive, HB_sender, Im_root]),
+      %io:format("~p: Ricevuto is_root_alive(~p) da ~p: i'm root (~p).~n", [Id, Id_root_keep_alive, HB_sender, Im_root]),
       {ok, {Id_root, _Dist, _Id_RP}} = state_server:get_tree_state(Server_name),
       if
 %%        (not Im_root) andalso (Id_root == Id_root_keep_alive) ->
@@ -266,7 +266,7 @@ listen(State = #hb_state{
           Is_alive = Root_alive,
           NOldRoot = Oldroot;
         true -> % la radice è morta, sono io la nuova radice e lo dico ai vicini
-          io:format("~p: La mia radice è morta.~n", [Id]),
+          io:format("~p: La mia radice è morta {timer: ~p, saved_root: ~p, alive: ~p}.~n", [Id, Root_id_timer, Saved_root, Root_alive]),
           NOldRoot = Saved_root,
           state_server:reset_tree_state(Server_name),
           self() ! {start_tree},
