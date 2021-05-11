@@ -409,7 +409,7 @@ alla transazione, allora non potrà eseguire altre regole.
 \label{img:transazioni}
 \end{figure}
 
-\subsection{Algoritmo: Flooding}
+\subsection{Algoritmo: Flooding} \label{alg:flooding}
 Ogni qual volta si crea una regola che genera un evento ``globale'', ogni nodo spedirà
 	   ai suoi vicini un messaggio contenenta un'azione da eseguire. Questi, una volta ricevuto,
 	   aggiorneranno il loro ``wave count'' (tenuto dal clock, spiegato successivamente),
@@ -457,7 +457,7 @@ Questo protocollo si divide in 3 fasi:
     \item \textit{\textbf{transiction}}: in questa fase, per almeno uno componente della rete, la radice risulta non più raggiungibile. In questa fase i nodi coinvolti, non possono accettare la vecchia radice. Questa fase avviene quando un nodo perde la sua ``radice'', o quando lo spanning tree perde la radice che lo genera.
 \end{itemize}
 
-La scelta della radice avviene in maniera deterministica, sfruttando l'identificatore univoco di cui ogni nodo è dotato. Definiamo $<saved\_root, saved\_len, saved\_nh>$ la tupla che identifica i dati di radice attualmente salvata, la mia attuale distanza e attraverso quale vicino riesco a raggiungerla, mentre definiamo come $<root, len, nh>$ la tupla proposta dai miei vicini. A questo punto la scelta per un nodo della sua radice avviene come segue:
+La scelta della radice avviene in maniera deterministica, sfruttando l'identificatore univoco di cui ogni nodo è dotato. Definiamo come \textit{tree\_state} la tupla definita come $<saved\_root, saved\_len, saved\_nh>$, la quale identifica l'identificativo della radice attualmente salvata, la mia attuale distanza e attraverso quale vicino riesco a raggiungerla, mentre definiamo come $<root, len, nh>$ la tupla proposta dai miei vicini. A questo punto la scelta per un nodo della sua radice avviene come segue:
 \begin{itemize}
     \item $saved\_root > root$: la radice proposta è inferiore alla mia e sarà scelta come mia nuova radice;
     \item $saved\_root = root \land saved\_len + 1 < len$: il mio vicino è ha una distanza peggiore della mia, lo avviso che il mio percorso potrebbe essere migliore;
@@ -617,6 +617,9 @@ I valori associati alla terza componente sono strettamente correlati a quanto af
 I valori associati al quarto membro della tupla sono invece legati ad informazioni chiave per identificare il nodo di appartenenza. Al suo interno possiamo trovare alcune voci, quali ad esempio: il suo identificativo univoco, che tipo di nodo è per la rete, quante \textit{``rules wave''} ha visto, il suo clock interno e chi è la sua radice. Queste informazioni sono identificative ed univoche per un nodo, e sono il suo stato interno.
 
 Poiché lo state server è l'unico a poter manipolare le variabili del nodo, al suo interno avrà un piccolo ``interprete'' per manipolare e controllare le variabili. Questo avviene in maniera ricorsiva mediante l'utilizzo di una funzione ricorsiva chiamata ``check\_condition'' (si rimanda all'appendice \ref{code:stateserver} per ulteriori delucidazioni).
+
+Oltre a tutto ciò questo modulo mantiene all'interno del suo stato un flag chiamato \textit{is\_tree\_stable}. Questo parametro booleano viene utlizzato per decidere, nel momento dell'invio di un messaggio, se utilizzare solamente i vicini attivi secondo lo \textit{spanning~tree} (\ref{algo:dstp}), nel caso sia \texttt{true}, oppure usare tutti quelli conosciuti (tramite \textit{flooding} \ref{alg:flooding}). Viene utilizzato questo flag perché nel momento in cui la struttura dell'albero sta eseguendo un aggiornamento o una modifica, gli eventi globali potrebbero andare persi. Ogni qualvolta il valore di \textit{tree\_state} viene modificato il parametro in questione viene imposto a \texttt{false} e contemporaneamente viene fatto partire un timer con l'attuale valore di \textit{tree\_state}. Allo scadere del timer, viene controllato che il valore ad esso collegato sia uguale a quello attualmente salvato: in caso affermativo il flag \textit{is\_tree\_stable} viene posto a \texttt{true}.
+
 
 \section{Esecutore dei comandi (module: rules\_worker)}\label{impl:rules_worker}
 
