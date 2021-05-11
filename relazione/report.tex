@@ -57,11 +57,11 @@ Ogni dispositivo corrisponde ad un nodo della rete ed è caratterizzato da:
 \item \textbf{Regole} : insieme di regole del tipo ECA (Event Condition Action) che
 	   possono attivarsi a seguito di un evento inviato al nodo. Queste regole possono
 	   essere
-	   di due tipi: locali, l'azione modifica solamente lo stato del nodo in cui si
+	   di tre tipi: locali, l'azione modifica solamente lo stato del nodo in cui si
 	   attiva,
-	   oppure globale, l'azione viene inviata a tutti i nodi della rete perché venga
+	   globale, l'azione viene inviata a tutti i nodi della rete perché venga
 	   letta
-	   ed, in caso la valutazione della guardia associata sia positiva, eseguita.
+	   ed, in caso la valutazione della guardia associata sia positiva, eseguita, oppure di transazione, dove l'azione associata verrà eseguita da tutti i nodi partecipanti contemporaneamente.
 \center$\{event;~condition;~action~|~\text{if}~guard~\text{then}~action\}$
 \end{itemize}
 
@@ -690,15 +690,6 @@ Queste variabili servono da supporto per le funzionalità da lui offerte, quali:
 Compito essenziale dell'ambiente risulta essere quello di generare la rete e rendere consistente il grafo rappresentativo della stessa: proprio grazie a questo potremo simulare con semplicità le variazioni fisiche del grafo dovuti ad azioni nella rete stessa.\\
 Esempio della descrizione del grafo sarà:
 \begin{tcolorbox}[colback=yellow!5!white,colframe=lime!75!black,title=Grafo totalmente connesso]
-%    \begin{verbatim}
-%[bad, gen].            %$\displaystyle \leftarrow$ tipi dei nodi possibili nel grafo
-%[
-%  {a, gen, []},      %$\leftarrow$ identificativo del nodo, tipo, vicini
-%  {b, gen, [a]},
-%  {c, gen, [a, b]},
-%  {d, bad, [a, b, c]}
-%].
-%    \end{verbatim}
 \begin{center}
 \begin{tabular}{ll} 
 \texttt{[bad, gen].} & \texttt{\%}$\displaystyle \leftarrow$ \texttt{tipi dei nodi possibili nel grafo} \\ 
@@ -769,6 +760,13 @@ Procediamo quindi alla verifica puntuale dei requisiti appena descritti.
 
 \section{Test delle funzionalità}
 
+La rete testata è formata come segue:
+\begin{figure}[H]
+\makebox[\linewidth][c]{\includegraphics[scale=0.80]{rete.pdf}}
+\caption{Struttura della rete.} 
+\end{figure}
+I nodi in verde son o i nodi che possono esser aggiunti durante i vari test, l'arco in arancione sarà l'arco che verrà ``disabilitato'' durante il test, i nodi in rosso sono quelli che durante i test possono esser rimossi. 
+
 Sono stati eseguiti come segue:
 
 \subsection{Test aggiunta di un nodo: \texttt{test\_add\_node.erl}}
@@ -780,6 +778,294 @@ Si divide in due casi:
 \item aggiunta di un nodo con identificativo minore e quindi sarà eletta nuova radice della rete (funzione \texttt{add\_radice})
 \end{itemize}
 
+Listato della funzione \texttt{add\_foglia}:
+\begin{tcolorbox}[colback=yellow!5!white,colframe=cyan!75!black,title=funzione \texttt{add\_foglia} (1)]
+\begin{center}
+\begin{verbatim}
+1> test_add_node:add_foglia(). 
+Ricevuta lista di vicini: [{b,b_heartbeat_in}].
+Ricevuta lista di vicini: [{b,b_heartbeat_in},
+                           {c,c_heartbeat_in}].
+Ricevuta lista di vicini: [{b,b_heartbeat_in},
+                           {c,c_heartbeat_in},
+                           {d,d_heartbeat_in}].
+\end{verbatim}
+\end{center}
+\end{tcolorbox}
+\begin{tcolorbox}[colback=yellow!5!white,colframe=cyan!75!black,title=funzione \texttt{add\_foglia} (2)]
+\begin{center}
+\begin{verbatim}
+Ricevuta lista di vicini: [{c,c_heartbeat_in},
+                           {e,e_heartbeat_in}].
+b: Sono entrato in start_tree.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+d: Sono entrato in start_tree.
+c: Sono entrato in start_tree.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+e: Sono entrato in start_tree.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+b: Ricevuto tree_state: {d,0,d}.
+c: Ricevuto tree_state: {d,0,d}.
+d: Ricevuto tree_state: {c,0,c}.
+f: Ricevuto tree_state: {c,0,c}.
+e: Ricevuto tree_state: {d,0,d}.
+b: Ricevuto tree_state: {c,0,c}.
+c: Ricevuto tree_state: {e,0,e}.
+d: Ricevuto tree_state: {e,0,e}.
+f: Sono entrato in start_tree.
+e: Ricevuto tree_state: {c,0,c}.
+[...]
+c : Albero stabilizzato.
+d : Albero stabilizzato.
+f : Albero stabilizzato.
+e : Albero stabilizzato.
+Ricevuta lista di vicini: [{e,e_heartbeat_in},
+                           {d,d_heartbeat_in}].
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+g: Sono entrato in start_tree.
+e: Ricevuto tree_state: {g,0,g}.
+d: Ricevuto tree_state: {g,0,g}.
+g: Ricevuto tree_state: {b,1,e}.
+g: Ricevuto tree_state: {b,1,d}.
+d: Ricevuto tree_state: {b,2,g}.
+e: Ricevuto tree_state: {b,2,g}.
+g : Albero stabilizzato.
+f: Vicini: [{e,e_heartbeat_in,disable},
+            {c,c_heartbeat_in,route_port}].
+ok
+2> 
+\end{verbatim}
+\end{center}
+\end{tcolorbox}
+
+Listato della funzione \texttt{add\_radice}:
+\begin{tcolorbox}[colback=yellow!5!white,colframe=cyan!75!black,title=funzione \texttt{add\_radice} (1)]
+\begin{center}
+\begin{verbatim}
+1> test_add_node:add_radice().
+Ricevuta lista di vicini: [{b,b_heartbeat_in}].
+Ricevuta lista di vicini: [{b,b_heartbeat_in},
+                           {c,c_heartbeat_in}].
+Ricevuta lista di vicini: [{b,b_heartbeat_in},
+                           {c,c_heartbeat_in},
+                           {d,d_heartbeat_in}].
+Ricevuta lista di vicini: [{c,c_heartbeat_in},
+                           {e,e_heartbeat_in}].
+b: Sono entrato in start_tree.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+c: Sono entrato in start_tree.
+d: Sono entrato in start_tree.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+e: Sono entrato in start_tree.
+b: Ricevuto tree_state: {d,0,d}.
+Ricevuta risposta in aggiunta alla rete dai vicini.
+c: Ricevuto tree_state: {d,0,d}.
+d: Ricevuto tree_state: {c,0,c}.
+e: Ricevuto tree_state: {d,0,d}.
+c: Ricevuto tree_state: {e,0,e}.
+d: Ricevuto tree_state: {e,0,e}.
+f: Ricevuto tree_state: {c,0,c}.
+b: Ricevuto tree_state: {c,0,c}.
+d: Ricevuto tree_state: {c,0,c}.
+e: Ricevuto tree_state: {c,0,c}.
+f: Sono entrato in start_tree.
+c: Ricevuto tree_state: {d,1,e}.
+[...]
+d : Albero stabilizzato.
+c : Albero stabilizzato.
+e : Albero stabilizzato.
+f : Albero stabilizzato.
+Ricevuta lista di vicini: [{e,e_heartbeat_in}].
+Ricevuta risposta in aggiunta alla rete dai vicini.
+\end{verbatim}
+\end{center}
+\end{tcolorbox}
+\begin{tcolorbox}[colback=yellow!5!white,colframe=cyan!75!black,title=funzione \texttt{add\_radice} (2)]
+\begin{center}
+\begin{verbatim}
+a: Sono entrato in start_tree.
+e: Ricevuto tree_state: {a,0,a}.
+c: Ricevuto tree_state: {a,1,e}.
+[...]
+d: Ricevuto tree_state: {a,2,b}.
+e : Albero stabilizzato.
+d : Albero stabilizzato.
+f : Albero stabilizzato.
+c : Albero stabilizzato.
+b : Albero stabilizzato.
+a: Vicini: [{e,e_heartbeat_in,active}].
+e: Vicini: [{f,f_heartbeat_in,active},
+            {d,d_heartbeat_in,active},
+            {c,c_heartbeat_in,active},
+            {b,b_heartbeat_in,active},
+            {a,a_heartbeat_in,route_port}].
+ok
+2>
+\end{verbatim}
+\end{center}
+\end{tcolorbox}
+
+\subsection{Test aggiunta di un nodo: \texttt{test\_event.erl}}
+Questo test va a verificare la veridicità dei requisiti di:
+\begin{itemize}
+    \item attivazione di una regola;
+    \item modifica dello stato di un nodo;
+    \item esecuzione di un'azione ricevuta dai vicini.
+\end{itemize}
+Le funzioni messe a disposizione sono:
+\begin{enumerate}
+    \item \texttt{transaction}: va ad eseguire una transazione nella rete;
+    \item \texttt{regole\_a\_cascata}: va ad eseguire una catena di regole nella rete.
+\end{enumerate}
+
+Listato della funzione \texttt{transaction}:
+\begin{tcolorbox}[colback=yellow!5!white,colframe=cyan!75!black,title=funzione \texttt{transaction} (1)]
+\begin{center}
+\begin{verbatim}
+[...]
+d Rules worker - Ricevuta azione: {{},[{x1,2},{x2,3}]}.
+d State_server - Ricevuta call con azione: 
+    {{}, [{x1,2},{x2,3}]}.
+d rules_worker - Letta regola di transazione: 
+    {{tpe,gen}, [{x8,22}]} (true).
+b : Received transaction request: {{tpe,gen},[{x8,22}]}.
+\end{verbatim}
+\end{center}
+\end{tcolorbox}
+\begin{tcolorbox}[colback=yellow!5!white,colframe=cyan!75!black,title=funzione \texttt{transaction} (2)]
+\begin{center}
+\begin{verbatim}
+b Rules worker - Ricevuta azione: {{tpe,gen},[{x8,22}]}.
+e : Received transaction request: {{tpe,gen},[{x8,22}]}.
+c : Received transaction request: {{tpe,gen},[{x8,22}]}.
+c Rules worker - Ricevuta azione: {{tpe,gen},[{x8,22}]}.
+e Rules worker - Ricevuta azione: {{tpe,gen},[{x8,22}]}.
+f : Received transaction request: {{tpe,gen},[{x8,22}]}.
+f Rules worker - Ricevuta azione: {{tpe,gen},[{x8,22}]}.
+e rules_worker - Ricevuta transaction_rqs.
+c rules_worker - Ricevuta transaction_rqs.
+b rules_worker - Ricevuta transaction_rqs.
+f rules_worker - Ricevuta transaction_rqs.
+c : Received transaction req ack: {4,d} of f.
+b : Received transaction req ack: {4,d} of e.
+f : Received transaction req ack: {4,d} of c.
+e : Received transaction req ack: {4,d} of b.
+d : Received transaction req ack: {4,d} of b.
+b : Received transaction req ack: {4,d} of c.
+c : Received transaction req ack: {4,d} of b.
+d Rules worker - Ricevuta transact_ack: {4,b}.
+d : Received transaction req ack: {4,d} of e.
+d Rules worker - Ricevuta transact_ack: {4,e}.
+d : Received transaction req ack: {4,d} of c.
+c : Received transaction req ack: {4,d} of e.
+b : Received transaction req ack: {4,d} of f.
+e : Received transaction req ack: {4,d} of c.
+f : Received transaction req ack: {4,d} of b.
+d Rules worker - Ricevuta transact_ack: {4,c}.
+d : Received transaction req ack: {4,d} of f.
+e : Received transaction req ack: {4,d} of f.
+f : Received transaction req ack: {4,d} of e.
+d Rules worker - Ricevuta transact_ack: {4,f}.
+d RW - timer si transaction started finito.
+d State_server - Ricevuta call con azione:
+    {{tpe,gen}, [{x8,22}]}.
+b : Received transaction start: {4,d,[f,c,e,b,d]}.
+b Rules worker - Ricevuta transact_commit: {d,4}.
+b State_server - Ricevuta call con azione: 
+    {{tpe,gen}, [{x8,22}]}.
+c : Received transaction start: {4,d,[f,c,e,b,d]}.
+e : Received transaction start: {4,d,[f,c,e,b,d]}.
+e Rules worker - Ricevuta transact_commit: {d,4}.
+c Rules worker - Ricevuta transact_commit: {d,4}.
+f : Received transaction start: {4,d,[f,c,e,b,d]}.
+e State_server - Ricevuta call con azione: 
+    {{tpe,gen}, [{x8,22}]}.
+c State_server - Ricevuta call con azione: 
+    {{tpe,gen}, [{x8,22}]}.
+f Rules worker - Ricevuta transact_commit: {d,4}.
+f State_server - Ricevuta call con azione: 
+    {{tpe,gen}, [{x8,22}]}.
+[...]
+2>
+\end{verbatim}
+\end{center}
+\end{tcolorbox}
+
+Listato della funzione \texttt{regole\_a\_cascata}:
+\begin{tcolorbox}[colback=yellow!5!white,colframe=cyan!75!black,title=funzione \texttt{regole\_a\_cascata} (1)]
+\begin{center}
+\begin{verbatim}
+[...]
+d Rules worker - Ricevuta azione: {{},[{x1,9},{x10,3}]}.
+d State_server - Ricevuta call con azione: 
+    {{},[{x1,9},{x10,3}]}.
+d rules_worker - Letta regola locale: [{x4,7},{x3,5}].
+d State_server - Ricevuta call con azione 
+    (da una regola locale): [{x4,7}, {x3,5}].
+d rules_worker - Letta regola globale:
+    {{tpe,gen},[{x9,66},{x7,12}]}.
+b : Received: {{tpe,gen},[{x9,66},{x7,12}]}.
+b Rules worker - Ricevuta azione: 
+    {{tpe,gen},[{x9,66},{x7,12}]}.
+e : Received: {{tpe,gen},[{x9,66},{x7,12}]}.
+c : Received: {{tpe,gen},[{x9,66},{x7,12}]}.
+e Rules worker - Ricevuta azione: 
+    {{tpe,gen},[{x9,66},{x7,12}]}.
+c Rules worker - Ricevuta azione: 
+    {{tpe,gen},[{x9,66},{x7,12}]}.
+f : Received: {{tpe,gen},[{x9,66},{x7,12}]}.
+f Rules worker - Ricevuta azione: 
+    {{tpe,gen},[{x9,66},{x7,12}]}.
+b State_server - Ricevuta call con azione: 
+    {{tpe,gen},[{x9,66},{x7,12}]}.
+e State_server - Ricevuta call con azione: 
+    {{tpe,gen},[{x9,66},{x7,12}]}.
+c State_server - Ricevuta call con azione: 
+    {{tpe,gen},[{x9,66},{x7,12}]}.
+f State_server - Ricevuta call con azione: 
+    {{tpe,gen},[{x9,66},{x7,12}]}.
+b: Vars table: [{x9,66,4},
+                {x8,0,-1},
+                {x7,12,4},
+                {x6,0,-1},
+                {x5,0,-1},
+                {x4,0,-1},
+                {x3,0,-1},
+                {x2,0,-1},
+                {x1,0,-1},
+                {x10,0,-1}].
+[...]
+2>
+\end{verbatim}
+\end{center}
+\end{tcolorbox}
+
+\subsection{Test del deperimento di un link: \texttt{test\_ignore.erl}}
+In questo test si verifica la robustezza del sistema a dei possibili guasti tra le comunicazioni tra i nodi. Viene simulata la caduta di un collegamento fra due nodi della rete: per fare ciò vengono utilizzate delle funzioni apposite che avvisano il nodo di ignorare i messaggi di un determinato vicino.\\
+La funzione per testare la funzionalità è:
+\begin{itemize}
+    \item \texttt{remove\_connection}: la funzione impone ad un nodo di ignorare un vicino.
+\end{itemize}
+L'esecuzione della funzione viene lasciata come esercizio al lettore.
+
+\subsection{Test della scomparsa di un nodo: \texttt{test\_kill\_node.erl}}
+in questo test si verifica la resistenza del sistema alla morte ``accidentale'' dei suoi nodi. Le funzioni a disposizione per testare il sistema sono:
+\begin{enumerate}
+    \item \texttt{kill\_foglia}: viene ucciso un nodo foglia della rete;
+    \item \texttt{kill\_root}: viene ucciso un nodo foglia della rete;
+    \item \texttt{kill\_node}: viene ucciso un nodo normale della rete (cioè ne foglia ne radice).
+\end{enumerate}
 
 
 \chapter{Conclusioni}
