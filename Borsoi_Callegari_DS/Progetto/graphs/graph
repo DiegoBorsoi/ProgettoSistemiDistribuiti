@@ -1,0 +1,47 @@
+%esempio di grafo dei nodi
+[bad,gen].
+[
+    {
+        a,
+        gen,
+        [
+        ]
+    }
+        ,
+    {
+        b,
+        gen,
+        [
+            a
+        ]
+    }
+,
+    {
+        c,
+        gen,
+        [
+            a,
+            b
+        ]
+    },
+    {
+        d,
+        bad,
+        [
+            a,
+            b,
+            c
+        ]
+    }
+%,
+%    {
+%        errore,
+%        finestra,
+%        [
+%            a,
+%            b,
+%            c,
+%            errore
+%        ]
+%    }
+].

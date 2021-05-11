@@ -1,0 +1,42 @@
+%esempio di grafo dei nodi usato dai vari test
+[gen].
+[
+    {
+        b,
+        gen,
+        [
+        ]
+    },
+    {
+        c,
+        gen,
+        [
+            b
+        ]
+    },
+    {
+        d,
+        gen,
+        [
+            b,
+            c
+        ]
+    },
+    {
+        e,
+        gen,
+        [
+            b,
+            c,
+            d
+        ]
+    },
+    {
+        f,
+        gen,
+        [
+            c,
+            e
+        ]
+    }
+].

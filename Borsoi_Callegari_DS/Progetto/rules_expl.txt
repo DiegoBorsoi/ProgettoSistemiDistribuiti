@@ -1,0 +1,104 @@
+%File di esempio e spiegazione regole
+%
+%Variabili:
+%[
+%   {var,val}: variabile, valore iniziale
+%   [...]
+%}
+%
+%REGOLA LOCALE
+%{
+%    TIPO:
+%        local: regola che fa qualcosa solo nel nodo
+%    ,
+%    TRIGGER: eventi che servono per attivare la regola
+%    [
+%        var1, var2, var3,...
+%    ]
+%    ,
+%    CONDIZIONI:
+%    {
+%        COND:
+%            op         : operazione della condizione (lt, lte, gt, gte, eq, neq)
+%            var1, var2 : variabili di stato coinvolte
+%        OR             **forse lo implementiamo**
+%            binop            : {and,or,not}
+%            {COND1}, {COND2} : lista di cond
+%    },
+%    AZIONE:
+%    [ {var,val} ] : che variabile deve essere settata a cosa
+%}
+%
+%REGOLA GLOBALE/TRANSAZIONE
+%{
+%    TIPO:
+%        global:      regola che si propaga nella rete
+%        transaction: regola che chiede di eseguire qualcosa assieme
+%    ,
+%    TRIGGER: eventi che servono per attivare la regola
+%    [
+%        var1, var2, var3,...
+%    ]
+%    ,
+%    CONDIZIONI:
+%    {
+%        COND:
+%            op         : operazione della condizione (lt, lte, gt, gte, eq, neq)
+%            var1, var2 : variabili di stato coinvolte
+%        OR             **forse lo implementiamo**
+%            binop            : {land,lor,lnot}
+%            {COND1}, {COND2} : lista di cond
+%    },
+%    AZIONE:
+%    {
+%        { GUARDIE }: condizioni di guardia per l'esecuzione delle azioni descritte successivamente
+%        [ {var,val} ] : che variabile deve essere settata a cosa
+%
+%        GUARDIE: come condizioni, ma le operazioni sono (lt, lte, gt, gte, eq, neq, tpe, ntp)
+%    }
+%}
+%
+%esempi:
+[
+    {x1,0},
+    {x2,0},
+    {x3,0},
+    {x4,0},
+    {x5,0},
+    {x6,0},
+    {x7,0},
+    {x8,0},
+    {x9,0},
+    {x10,0}
+].
+
+
+{
+    local,
+    [x1,x2,x10],
+    {
+        and,
+        {lt,x1,10},
+        {gt,10,22}
+    }
+    [
+        {x4,7},
+        {x30,5}
+    ]
+}.
+[] == trigger -- list_events
+{
+    global,
+    [x1,x2,x10],
+    {lt,x1,10},
+    {
+        {lte,x1,3}
+        [
+            {x4,7},
+            {x30,5}
+        ]
+    }
+}.
+
+
+
