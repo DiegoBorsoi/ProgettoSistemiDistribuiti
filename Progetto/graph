@@ -1,5 +1,5 @@
 %esempio di grafo dei nodi
-[gen].
+[bad,gen].
 [
     {
         a,
@@ -26,7 +26,7 @@
     },
     {
         d,
-        gen,
+        bad,
         [
             a,
             b,

@@ -102,16 +102,23 @@ create_table(Id, Tipo) ->
     {decentralized_counters, false}
   ]),
   ets:insert(NodeParams, [{id, Id}, {clock, -1}, {tipo, Tipo}, {tree_state, {Id, 0, Id}}]),
-  {ok, File} = file:consult(list_to_atom(atom_to_list(Tipo) ++ "_rules.txt")), % TODO: controllare se il tipo è giusto
-  case File of
-    [Vrs | Rls] ->
-      lists:foreach(
-        fun({Var_name, Var_value}) -> ets:insert(Vars, {Var_name, Var_value, -1}) end,
-        Vrs),
-      lists:foreach(
-        fun(Rule) -> ets:insert(Rules, Rule) end,
-        Rls);
-    _ ->
-      io:format("Errore nella lettura del file contenente le regole.")
+  try
+    {ok, File} = file:consult(list_to_atom(atom_to_list(Tipo) ++ "_rules.txt")),
+    case File of
+      [Vrs | Rls] ->
+        lists:foreach(
+          fun({Var_name, Var_value}) -> ets:insert(Vars, {Var_name, Var_value, -1}) end,
+          Vrs),
+        lists:foreach(
+          fun(Rule) -> ets:insert(Rules, Rule) end,
+          Rls);
+      _ ->
+        io:format("~p: Errore nella lettura del file contenente le regole, non rispettata la sintassi.~n", [Id])
+      %non inserisco nulla nelle regole e nelle variabili
+    end
+  catch
+    _:_ ->
+      io:format("~p: Errore nella lettura del file contenente le regole, file non leggibile.~n", [Id])
+    %non inserisco nulla nelle regole e nelle variabili
   end,
   {Vars, Rules, Neighb, NodeParams}.
