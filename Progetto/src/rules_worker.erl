@@ -49,8 +49,8 @@ init([Id, Server_name]) ->
 handle_call(_Request, _From, State = #rules_worker_state{}) ->
   {reply, ok, State}.
 
-handle_cast({exec_action, Type, Action_clock, Action}, State = #rules_worker_state{state_server = Server, priority_queue = PQ, action_queue = AQ, on_timer_hold = OTH}) ->
-  io:format("Rules worker - Ricevuta azione: ~p.~n", [Action]),
+handle_cast({exec_action, Type, Action_clock, Action}, State = #rules_worker_state{id = Id, state_server = Server, priority_queue = PQ, action_queue = AQ, on_timer_hold = OTH}) ->
+  io:format("~p Rules worker - Ricevuta azione: ~p.~n", [Id, Action]),
   {ok, Clock} = state_server:get_clock(Server),
   if
     Action_clock > (Clock + 1) ->
@@ -76,8 +76,8 @@ handle_cast({exec_action, Type, Action_clock, Action}, State = #rules_worker_sta
       New_AQ = queue:in({Type, Action_clock, Action}, AQ)
   end,
   {noreply, State#rules_worker_state{action_queue = New_AQ, on_timer_hold = New_OTH}};
-handle_cast({transact_commit, Id_gen, Clock}, State = #rules_worker_state{state_server = Server, priority_queue = PQ, action_queue = AQ, on_timer_hold = OTH, transaction_state = TS}) ->
-  io:format("Rules worker - Ricevuta transact_commit: ~p.~n", [{Id_gen, Clock}]),
+handle_cast({transact_commit, Id_gen, Clock}, State = #rules_worker_state{id = Id, state_server = Server, priority_queue = PQ, action_queue = AQ, on_timer_hold = OTH, transaction_state = TS}) ->
+  io:format("~p Rules worker - Ricevuta transact_commit: ~p.~n", [Id, {Id_gen, Clock}]),
   case TS of
     {waiting_commit, Saved_Id_gen, Saved_Transact_clock, Saved_action} when (Saved_Id_gen == Id_gen) and (Saved_Transact_clock == Clock) ->
       % ricevuto il commit della transazione a cui avevo risposto, quindi eseguo l'azione
@@ -93,7 +93,7 @@ handle_cast({transact_commit, Id_gen, Clock}, State = #rules_worker_state{state_
       {noreply, State}
   end;
 handle_cast({transact_ack, Id_node, Transact_clock, Id_gen}, State = #rules_worker_state{id = Id, transaction_state = TS}) ->
-  io:format("Rules worker - Ricevuta transact_ack: ~p.~n", [{Transact_clock, Id_node}]),
+  io:format("~p Rules worker - Ricevuta transact_ack: ~p.~n", [Id, {Transact_clock, Id_node}]),
   case TS of
     {started_transaction, Saved_clock, Transaction_list, Saved_act} when (Id == Id_gen) and (Saved_clock == Transact_clock) ->
       {noreply, State#rules_worker_state{transaction_state = {started_transaction, Saved_clock, [Id_node | Transaction_list], Saved_act}}};
@@ -122,15 +122,15 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
   Risp = case TS of
            {started_transaction, _Clock, _Transaction_list, _Act} when On_transaction_with_me ->
              % ho iniziato una transazione che mi riguarda e quindi non faccio nulla finché non è finita
-             io:format("RW - Started transaction, waiting for response.~n"),
+             %io:format("RW - Started transaction, waiting for response.~n"),
              {noreply, State};
            {waiting_commit, _Id_gen, _Action_clock, _Action} -> % ho risposto ad una transact_rqs e sto aspettando la risposta dal generatore
-             io:format("RW - Waiting_commit.~n"),
+             %io:format("RW - Waiting_commit.~n"),
              {noreply, State};
            {none} -> % non mi trovo in nessuna transazione, quindi procedo normalmente
              case queue:out(PQ) of
                {{value, {local, Rule_clock, Cond, Act}}, New_PQ} ->
-                 io:format("Letta regola locale: ~p.~n", [Act]),
+                 io:format("~p rules_worker - Letta regola locale: ~p.~n", [Id, Act]),
                  {ok, Cond_risp} = state_server:check_rule_cond(Server, Rule_clock, Cond), % controllo se la condizione della regola è soddisfatta
                  case Cond_risp of
                    true -> % in caso affermativo devo eseguire l'azione e controllare se vengono triggerate altre regole
@@ -143,7 +143,7 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
                      {noreply, State#rules_worker_state{priority_queue = New_PQ}}
                  end;
                {{value, {global, Rule_clock, Cond, Act}}, New_PQ} ->
-                 io:format("Letta regola globale: ~p.~n", [Act]),
+                 io:format("~p rules_worker - Letta regola globale: ~p.~n", [Id, Act]),
                  {ok, Cond_risp} = state_server:check_rule_cond(Server, Rule_clock, Cond), % controllo se la condizione della regola è soddisfatta
                  case Cond_risp of
                    true -> % in caso affermativo faccio partire un nuovo flood
@@ -157,7 +157,7 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
                  {noreply, State#rules_worker_state{priority_queue = New_PQ}};
                {{value, {transaction, Rule_clock, Cond, Act}}, New_PQ} ->
                  {ok, Cond_risp} = state_server:check_rule_cond(Server, Rule_clock, Cond), % controllo se la condizione della regola è soddisfatta
-                 io:format("Letta regola di transazione: ~p (~p).~n", [Act, Cond_risp]),
+                 io:format("~p rules_worker - Letta regola di transazione: ~p (~p).~n", [Id, Act, Cond_risp]),
                  case Cond_risp of
                    true -> % se la regola è di transazione, allora la faccio partire
                      {ok, New_clock} = state_server:get_clock(Server),
@@ -182,7 +182,7 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
                {empty, _} -> % la priority queue è vuota, quindi passo alla coda di azioni ricevute tramite comm_IN
                  case queue:out(AQ) of % estraggo il primo elemento della queue e lo eseguo
                    {{value, {{transaction_rqs, Id_gen}, Action_clock, Action}}, New_AQ} -> % gestione di un messaggio di transact_rqs
-                     io:format("Ricevuta transaction_rqs.~n"),
+                     io:format("~p rules_worker - Ricevuta transaction_rqs.~n", [Id]),
 
                      % controllo se la guardia è valida e soddisfatta e se le azioni sono valide
                      {ok, Check_ris} = state_server:check_trans_guard(Server, Action_clock, Action),
@@ -209,7 +209,7 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
 
                      {noreply, State#rules_worker_state{priority_queue = New_PQ, action_queue = Updated_AQ, on_timer_hold = New_OTH}};
                    {empty, _} -> % (teoricamente non dovrei mai arrivare qui)
-                     io:format("Sono nel case dell'{empty, _} del handle_next_action.~n"),
+                     io:format("~p rules_worker - Sono nel case dell'{empty, _} del handle_next_action.~n", [Id]),
                      {noreply, State}
                  end
              end
@@ -240,11 +240,11 @@ handle_info({timer_flood_too_high_ended, Type, Action_clock, Action}, State = #r
     _ -> % caso in cui l'azione è stata eseguita prima che il timer finisse
       {noreply, State}
   end;
-handle_info({transact_timeout_ended, Id_gen, Action_clock}, State = #rules_worker_state{state_server = Server, action_queue = AQ, on_timer_hold = OTH, transaction_state = TS}) ->
+handle_info({transact_timeout_ended, Id_gen, Action_clock}, State = #rules_worker_state{id = Id, state_server = Server, action_queue = AQ, on_timer_hold = OTH, transaction_state = TS}) ->
   case TS of
     {waiting_commit, Id_saved, Clock_saved, _Action} when (Id_saved == Id_gen) andalso (Clock_saved == Action_clock) ->
       % nel caso in cui il timer finisce e sto ancora aspettando --> esco dalla transazione
-      io:format("RW - Timer finito, transazione annullata.~n"),
+      io:format("~p RW - Timer finito, transazione annullata.~n", [Id]),
       % devo però controllare la lista OTH per vedere se qualche azione aspettava il clock usato dalla transazione
       {New_AQ, New_OTH} = find_executable_on_hold_action(Action_clock, AQ, OTH, Server),
 
@@ -253,7 +253,7 @@ handle_info({transact_timeout_ended, Id_gen, Action_clock}, State = #rules_worke
       {noreply, State}
   end;
 handle_info({started_transaction_timeout_ended, Timeout_trans_clock}, State = #rules_worker_state{id = Id, state_server = Server, priority_queue = PQ, action_queue = AQ, on_timer_hold = OTH, transaction_state = TS}) ->
-  io:format("RW - timer si transaction started finito.~n"),
+  io:format("~p RW - timer si transaction started finito.~n", [Id]),
   % il timeout è scaduto e quindi invio il messaggio di commit a tutti i nodi che mi hanno risposto
   {started_transaction, Transaction_clock, Transaction_list, Action} = TS,
   if
@@ -274,7 +274,7 @@ handle_info({started_transaction_timeout_ended, Timeout_trans_clock}, State = #r
           {noreply, State#rules_worker_state{transaction_state = {none}}}
       end;
     true ->
-      io:format("RW - Errore: è finito il timer di una transazione creata da me che però non è uguale a quella salvata nello stato.~n"),
+      io:format("~p RW - Errore: è finito il timer di una transazione creata da me che però non è uguale a quella salvata nello stato.~n", [Id]),
       {noreply, State}
   end;
 handle_info(_Info, State = #rules_worker_state{}) ->

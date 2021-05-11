@@ -146,8 +146,8 @@ init([Id, State_tables]) ->
   {Vars, Rules, Neighb, NodeParams} = State_tables,
   {ok, #server_state{id = Id, vars_table = Vars, rules_table = Rules, neighb_table = Neighb, node_params_table = NodeParams, lost_connections = []}}.
 
-handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{vars_table = VT, rules_table = RT, node_params_table = PT}) ->
-  io:format("State_server - Ricevuta call con azione: ~p.~n", [Action]),
+handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{id = Id, vars_table = VT, rules_table = RT, node_params_table = PT}) ->
+  io:format("~p State_server - Ricevuta call con azione: ~p.~n", [Id, Action]),
 
   Valid_action = case Action of % in questo caso l'azione avrà sempre una guardia, essendo arrivante da comm_IN
                    {Guard, Actions} when is_list(Actions) ->
@@ -164,7 +164,7 @@ handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{va
                          false
                      end;
                    _ ->
-                     io:format("State server - azione non riconosciuta: ~p.~n", [Action]),
+                     io:format("~p State server - azione non riconosciuta: ~p.~n", [Id, Action]),
                      false
                  end,
   Rules = case Valid_action of
@@ -192,15 +192,15 @@ handle_call({exec_action, Action_clock, Action}, _From, State = #server_state{va
               []
           end,
   {reply, {ok, Rules}, State};
-handle_call({exec_action_from_local_rule, Action_clock, Action}, _From, State = #server_state{vars_table = VT, rules_table = RT}) ->
-  io:format("State_server - Ricevuta call con azione (da una regola locale): ~p.~n", [Action]),
+handle_call({exec_action_from_local_rule, Action_clock, Action}, _From, State = #server_state{id = Id, vars_table = VT, rules_table = RT}) ->
+  io:format("~p State_server - Ricevuta call con azione (da una regola locale): ~p.~n", [Id, Action]),
 
   Valid_action = case Action of % in questo caso l'azione non avrà mai una guardia, essendo proveniente da una regola locale
                    Actions when is_list(Actions) ->
                      % controllo se l'azione non usa variabili con clock più nuovo
                      check_rules_action_vars_clock(Action_clock, Actions, VT);
                    _ ->
-                     io:format("State server - azione locale non riconosciuta: ~p.~n", [Action]),
+                     io:format("~p state server - azione locale non riconosciuta: ~p.~n", [Id, Action]),
                      false
                  end,
   Rules = case Valid_action of
@@ -354,8 +354,8 @@ handle_call({get_tree_neighb_hb}, _From, State = #server_state{neighb_table = NT
   {reply, {ok, Neighb_hb_list}, State};
 handle_call({get_ignored_neighb_hb}, _From, State = #server_state{lost_connections = LC}) ->  % Restituisce la lista dei vicini attivi
   {reply, {ok, LC}, State};
-handle_call(Msg, _From, State) ->  % per gestire messaggi syncroni sconosciuti
-  io:format("Messaggio sconosciuto in handle_call. (Non sto 'mbriacato) : ~p.~n", [Msg]),
+handle_call(Msg, _From, State = #server_state{id = Id}) ->  % per gestire messaggi syncroni sconosciuti
+  io:format("~p : Messaggio sconosciuto in handle_call. (Non sto 'mbriacato) : ~p.~n", [Id, Msg]),
   {reply, done, State}.
 
 handle_cast({ignore_neighb, Neighb}, State = #server_state{neighb_table = NT, lost_connections = LC}) ->

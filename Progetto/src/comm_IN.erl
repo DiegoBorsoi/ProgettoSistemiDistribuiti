@@ -59,7 +59,7 @@ listen(State = #comm_IN_state{id = Id, server = Server_name, rules_worker = RW, 
       end,
       listen(State);
     {transact_ack, Id_sender, Trans_clock, Trans_id_gen, Trans_id_ack} ->
-      io:format("~p : Received transaction req ack: ~p.~n", [Id, {Trans_clock, Trans_id_gen}]),
+      io:format("~p : Received transaction req ack: ~p of ~p.~n", [Id, {Trans_clock, Trans_id_gen}, Trans_id_ack]),
       case check_flood_validity({transaction_ack, Trans_id_ack}, Trans_clock, Trans_id_gen, FT) of
         true ->
           if
@@ -112,7 +112,7 @@ check_flood_validity(Type, Flood_clock, Flood_gen, FT) ->
   end,
 
   % cerco se il messaggio letto è già stato visto in precedenza
-  Found = ets:select(FT, [{{'$4', {'$1', '$2', '$3'}}, [{'andalso', {'==', '$1', Type}, {'andalso', {'==', '$2', Flood_clock}, {'==', '$3', Flood_gen}}}], ['$4']}]),
+  Found = ets:select(FT, [{{'$1', {Type, Flood_clock, Flood_gen}}, [], ['$1']}]),
   case length(Found) =/= 0 of
     true -> % elimino le vecchie occorrenze (dovrebbe essere sempre solo 1)
       [ets:delete(FT, Elem) || Elem <- Found];
@@ -124,7 +124,7 @@ check_flood_validity(Type, Flood_clock, Flood_gen, FT) ->
   % anche se c'era già va bene inserirlo di nuovo, in modo da "aggiornare" la chiave
   ets:insert(FT, {erlang:monotonic_time(), {Type, Flood_clock, Flood_gen}}),
 
-  Found == 0.
+  length(Found) == 0.
 
 %%%===================================================================
 %%% ets cleaning functions
