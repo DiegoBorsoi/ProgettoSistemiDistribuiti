@@ -516,7 +516,7 @@ In questo capitolo tratteremo le scelte implementative avvenute nel corso del pr
 \section{Software e hardware}
 Per l'implementazione non si è seguita una vera e propria scelta hardware, ma si è tenuto conto i vincoli, quali scarsa capacità computazionale e scarsa memoria.
 
-A livello software la scelta è ricaduta su Erlang, in quanto linguaggio fortemente orientato ai threads, funzionale e con spiccata capacità alle connessioni. Altra peculiarità sono le librerie messe a disposizione dallo stesso tramite OTP (Open Telecom Platform). Di queste librerie sfrutteremo fortemente dei ``behavior module'', quali \textit{gen\_server} e \textit{supervisor}, i quali danno a disposizione l'astrazione del meccanismo del client/server e di supervisione dei threads del processo in vita. Essendo fortemente orientato ai threads e funzionale per poter utilizzare dei timer siamo dovuti ricorrere ad un particolare meccanismo: una funzione messa a disposizione da erlang, chiamata \textit{send\_after}, che ci permette di inviare un messaggio ad un modulo passato come parametro dopo un intervallo di tempo specificabile, in questo modo siamo riusciti ad evitare il blocco dell'esecuzione di un processo.
+A livello software la scelta è ricaduta su Erlang, in quanto linguaggio fortemente orientato ai threads, funzionale e con spiccata capacità alle connessioni. Altra peculiarità sono le librerie messe a disposizione dallo stesso tramite OTP (Open Telecom Platform). Di queste librerie sfrutteremo fortemente dei ``behavior module'', quali \textit{gen\_server} e \textit{supervisor}, i quali danno a disposizione l'astrazione del meccanismo del client/server e di supervisione dei threads del processo in vita. Essendo fortemente orientato ai threads e funzionale, per poter utilizzare dei timer siamo dovuti ricorrere ad un particolare meccanismo: una funzione messa a disposizione da erlang, chiamata \textit{send\_after}, che ci permette di inviare un messaggio ad un modulo passato come parametro dopo un intervallo di tempo specificabile, in questo modo siamo riusciti ad evitare il blocco dell'esecuzione di un processo.
 
 I moduli sviluppati più interessanti saranno quindi descritti in dettaglio nei paragrafi successivi.
 
@@ -587,7 +587,7 @@ La comunicazione delle regole da eseguire con i vicini avviene tramite l'utilizz
 \section{Memoria dei parametri (module: state\_server)}
 Ogni nodo, come esplicitato nei requisiti funzionali (paragrado \ref{sec:funcReq}), necessita d'essere programmabile e d'avere un insieme di variabili di stato proprie. Oltre a questo, si ha la necessità di conoscere e di poter interpretare delle regole definite all'avvio del nodo. Oltretutto, poiché si ha a che fare con un ambiente virtualizzato, necessitiamo di sapere quali sono i vicini con cui collabora.
 
-Tutte queste informazioni, come già esplicitato nel capitolo precedente e nei paragrafi precedenti, sono salvate all'interno di uno ``state server'', il quale opera su delle tabelle persistenti (a meno di un riavvio totale del un nodo), create e fornite dal supervisor del nodo, al fine di non aver problematiche in caso di fallimenti.
+Tutte queste informazioni, come già esplicitato nel capitolo precedente e nei paragrafi precedenti, sono salvate all'interno di uno ``state server'', il quale opera su delle tabelle persistenti (a meno di un riavvio totale del nodo), create e fornite dal supervisor del nodo, al fine di non aver problematiche in caso di fallimenti.
 
 Lo state server è incentrato in un'ottica client/server: per questo motivo il suo behavior module è \textit{gen\_server}.
 
@@ -620,12 +620,12 @@ Poiché lo state server è l'unico a poter manipolare le variabili del nodo, al 
 
 \section{Esecutore dei comandi (module: rules\_worker)}\label{impl:rules_worker}
 
-Questo modulo, come accennato nei paragrafi precedenti, si occupa dello ``smistamento'' delle azioni ricevute dai nodi vicini (tramite il modulo \textit{communication\_in}) e di gestire la logica di attivazione delle regole che possono attivarsi.
+Questo modulo, come accennato nei paragrafi precedenti, si occupa dell'esecuzione delle azioni ricevute dai nodi vicini (tramite il modulo \textit{communication\_in}) e di gestire la logica di attivazione delle regole che possono attivarsi.
 
 Il modulo fornisce una funzione apposita (\textit{exec\_action}) la quale permettere ad un qualsiasi altro modulo del nodo (in questo caso solamente \textit{communication\_in} e \textit{communication\_ambiente}) di inviare ad esso un'azione da eseguire. Una volta ricevuta un'azione, viene eseguito il controllo del valore del clock legato ad essa: se il clock ricevuto fosse maggiore del valore previsto dal nodo (cioè il valore di clock salvato $+ 1$), l'azione viene inserita in una lista di attesa (\textit{on\_timer\_hold}, presente nello stato interno del modulo) nella quale rimarrà finché non vengono eseguite le azioni mancanti, le quali porterebbero il valore atteso dal nodo a quello in questione, oppure finché non scade l'apposito timer istanziato nel momento in cui l'azione veniva aggiunta alla lista.\\ % TODO: durata timer
 Nel momento in cui un'azione ricevuta possieda un valore di clock minore o uguale al valore atteso dal nodo, oppure è stata appena estratta dalla lista \textit{on\_timer\_hold}, viene inserita in una coda di esecuzione (\textit{action\_queue}) aggiornando il valore di clock del nodo in accordo. Questa coda verrà svuotata da una routine apposita, mentre il nodo potrà continuare ad eseguire i calcoli necessari, senza bloccare la possibilità di ricevere ulteriori azioni dai nodi vicini. 
 
-Per processare le varie azioni inserite nella coda viene utilizzato un segnale apposito interno al modulo (\textit{handle\_next\_action}): nel momento in cui si sta inserire una nuova azione nella coda si controlla se questa sia vuota, e, in caso affermativo, il modulo si invia il messaggio in questione. Questo meccanismo permette d'avere sempre e solo un segnale di questo tipo. Nel momento in cui si finisce di processare un'azione estratta dalla testa della coda, si procede, eventualmente, ad eseguire la prossima azione ``rinviandosi'' il messaggio di prima, fino all'esaurimento della stessa.
+Per processare le varie azioni inserite nella coda viene utilizzato un segnale apposito interno al modulo (\textit{handle\_next\_action}): nel momento in cui si sta per inserire una nuova azione nella coda si controlla se questa sia vuota, e, in caso affermativo, il modulo invia a se stesso il messaggio in questione. Questo meccanismo permette d'avere sempre e solo un segnale di questo tipo. Nel momento in cui si finisce di processare un'azione estratta dalla testa della coda, si procede, eventualmente, ad eseguire la prossima azione ``rinviandosi'' il messaggio di prima, fino all'esaurimento della stessa.
 
 
 \subsection{Esecuzione di un'azione}
@@ -638,14 +638,14 @@ Finché la coda \textit{action\_queue} non è vuota, vado ad estrarre la prossim
 \end{enumerate}
 In caso di valutazione positiva di tutti i passi, verranno eseguite le varie istruzioni richieste dall'azione. Una volta terminata l'azione lo \textit{state\_server} cerca tutte le regole che vengono attivate dalle modifiche appena eseguite (ovvero, se tutti i valori di trigger sono soddisfatti) e le restituisce sotto forma di lista.
 
-Le nuove regole attivate devono essere processate prima di eseguire una nuova azione: per questo motivo verranno inserite in una coda prioritaria (\textit{priority\_queue}). Questa coda viene eseguita in egual maniera rispetto alla \textit{action\_queue}, ma ha la precedenza rispetto a questa.
+Le nuove regole attivate devono essere processate prima di eseguire una nuova azione: per questo motivo verranno inserite in una coda prioritaria (\textit{priority\_queue}). Questa coda viene trattata in egual maniera rispetto all'\textit{action\_queue}, ma ha la precedenza rispetto a questa.
 
-Al termine di queste operazioni si verifiche se posso eseguire una delle regole nella lista \textit{on\_timer\_hold}: se è possibile vengono estratte le regole interessate e verranno inserite in testa nell'\textit{action\_queue}.
+Al termine di queste operazioni si verifica se nella lista \textit{on\_timer\_hold} ci siano delle regole che possano essere eseguite: se è possibile vengono estratte le regole interessate e verranno inserite in coda nell'\textit{action\_queue}.
 
-\subsection{Propagazione delle regole}
-I passi eseguiti per la propoagazione delle regole sono simili a quanto detto nel paragrafo precedente: riassumeremo velocemente l'iter delle azioni compiute.
+\subsection{Processamento delle regole}
+I passi eseguiti per il processamento delle regole sono simili a quanto detto nel paragrafo precedente: riassumeremo velocemente l'iter delle azioni compiute.
 Viene estratta una regola presente in testa alla coda \textit{priority\_queue}: si procede quindi a verificare la condizione della stessa tramite una funzione apposita dello \textit{state\_server}. Come prima, si controlla se le variabili presenti esistano realmente e se non siano già state modificate da un clock di valore maggiore, infine si esegue il controllo della condizione, restituendo se essa è soddisfatta o meno.\\
-In questo caso, diversamente dalle azioni interne(?), il clock della regola può modificare le variabili, ed apporrà il valore di clock della regola: in caso in cui più regole vadano ad utilizzare la medesima variabile allo stesso clock (per modifiche o condizioni) è una situazione contemplata.
+In questo caso, diversamente dalle azioni esterne (cioè ricevuto da altri nodi tramite flood), la regola può utilizzare variabili modificate al medesimo valore di clock: in caso in cui più regole vadano ad utilizzare la medesima variabile allo stesso clock (per modifiche o condizioni) è una situazione contemplata.
 
 la regola verrà quindi processata in base al suo tipo:
 \begin{description}
