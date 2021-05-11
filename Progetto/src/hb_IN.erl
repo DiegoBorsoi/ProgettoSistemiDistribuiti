@@ -1,5 +1,7 @@
 -module(hb_IN).
 
+-include("../config/config_timer.hrl").
+
 %% API
 -export([start_link/3]).
 -export([init/3]).
@@ -214,7 +216,7 @@ listen(State = #hb_state{
           spawn(hb_OUT, init, [Server_name, {tree_state, HB_name, {Id_root, Dist + 1, Id}}, Neighbs_hb -- [HB_sender]]),
           New_Im_root = false,
           New_is_alive = false,
-          erlang:send_after(4000, self(), {tree_keep_alive_timer_ended, Id_root});
+          erlang:send_after(?TIMER_WAIT_TREE_KEEP_ALIVE, self(), {tree_keep_alive_timer_ended, Id_root});
         ((Saved_root == Id_root) andalso (Saved_dist > Dist + 1))
           orelse
           ((Saved_root == Id_root) andalso (Saved_dist == Dist + 1) andalso (Id_sender < Saved_RP)) ->
@@ -261,7 +263,7 @@ listen(State = #hb_state{
         Im_root orelse (Root_id_timer == Saved_root andalso Root_alive) ->
           Is_alive = false,
           NOldRoot = Oldroot,
-          erlang:send_after(4000, self(), {tree_keep_alive_timer_ended, Root_id_timer});
+          erlang:send_after(?TIMER_WAIT_TREE_KEEP_ALIVE, self(), {tree_keep_alive_timer_ended, Root_id_timer});
         Root_id_timer =/= Saved_root -> % timer vecchio da eliminare
           Is_alive = Root_alive,
           NOldRoot = Oldroot;
@@ -270,9 +272,9 @@ listen(State = #hb_state{
           NOldRoot = Saved_root,
           state_server:reset_tree_state(Server_name),
           self() ! {start_tree},
-          erlang:send_after(6000, self(), {reset_root}),
+          erlang:send_after(?TIMER_TREE_RESET_ROUTE, self(), {reset_root}),
           Is_alive = false,
-          erlang:send_after(4000, self(), {tree_keep_alive_timer_ended, Id})
+          erlang:send_after(?TIMER_WAIT_TREE_KEEP_ALIVE, self(), {tree_keep_alive_timer_ended, Id})
       end,
       listen(State#hb_state{is_root_alive = Is_alive, oldroot = NOldRoot});
     {tree_root_keep_alive_timer_ended} ->
@@ -280,7 +282,7 @@ listen(State = #hb_state{
         Im_root ->
           {ok, Neighbs_hb} = state_server:get_tree_neighb_hb(Server_name),
           spawn(hb_OUT, init, [Server_name, {tree_keep_alive, HB_name, Id}, Neighbs_hb]),
-          erlang:send_after(2000, self(), {tree_root_keep_alive_timer_ended});
+          erlang:send_after(?TIMER_TREE_KEEP_ALIVE, self(), {tree_root_keep_alive_timer_ended});
         true ->
           ok
       end,

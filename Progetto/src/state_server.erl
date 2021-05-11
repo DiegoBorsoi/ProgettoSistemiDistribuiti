@@ -1,6 +1,8 @@
 -module(state_server).
 -behaviour(gen_server).
 
+-include("../config/config_timer.hrl").
+
 %% API
 -export([start_link/3]).
 
@@ -300,7 +302,7 @@ handle_call({reset_tree_state}, _From, State = #server_state{id = Id, neighb_tab
   ets:insert(NpT, {tree_state, {Id, 0, Id}}),
 
   % faccio partire un timer per vedere se la struttura dell'albero resta stabile
-  erlang:send_after(6500, self(), {tree_state_timeout_ended, {Id, 0, Id}}),
+  erlang:send_after(?TIMER_WAIT_TREE_STABILITY, self(), {tree_state_timeout_ended, {Id, 0, Id}}),
   {reply, ok, State#server_state{is_tree_stable = false}};
 handle_call({set_tree_state, Tree_state = {Id_root, _Dist, Id_RP}}, _From, State = #server_state{neighb_table = NT, node_params_table = NpT}) ->
   [[{Old_root, _Old_dist, Old_RP}]] = ets:match(NpT, {tree_state, '$1'}), % cerco il vecchio stato dell'albero
@@ -322,7 +324,7 @@ handle_call({set_tree_state, Tree_state = {Id_root, _Dist, Id_RP}}, _From, State
   ets:insert(NT, {Id_RP, HB_RP, route_port}),
 
   % faccio partire un timer per vedere se la struttura dell'albero resta stabile
-  erlang:send_after(6500, self(), {tree_state_timeout_ended, Tree_state}),
+  erlang:send_after(?TIMER_WAIT_TREE_STABILITY, self(), {tree_state_timeout_ended, Tree_state}),
   {reply, ok, State#server_state{is_tree_stable = false}};
 handle_call({set_tree_active_port, ID_port}, _From, State = #server_state{neighb_table = NT}) ->
   try

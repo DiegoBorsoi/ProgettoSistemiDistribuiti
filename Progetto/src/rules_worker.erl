@@ -1,6 +1,8 @@
 -module(rules_worker).
 -behaviour(gen_server).
 
+-include("../config/config_timer.hrl").
+
 %% API
 -export([start_link/3]).
 
@@ -56,7 +58,7 @@ handle_cast({exec_action, Type, Action_clock, Action}, State = #rules_worker_sta
     Action_clock > (Clock + 1) ->
       % se il valore di clock non è quello che mi aspetto,
       % allora aspetto un timer per dare la possibilità al flood con il giusto clock di arrivare
-      erlang:send_after(1000, self(), {timer_flood_too_high_ended, Type, Action_clock, Action}),
+      erlang:send_after(?TIMER_WAIT_FLOOD_TOO_HIGH, self(), {timer_flood_too_high_ended, Type, Action_clock, Action}),
       New_OTH = [{Type, Action_clock, Action} | OTH],
       New_AQ = AQ;
     true ->
@@ -174,7 +176,7 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
                                             []
                                         end,
                      % faccio partire un timer che mi limita il tempo di attesa per delle risposte
-                     erlang:send_after(3000, self(), {started_transaction_timeout_ended, New_clock + 1}),
+                     erlang:send_after(?TIMER_WAIT_TRANSACTION_ACK_LISTENING, self(), {started_transaction_timeout_ended, New_clock + 1}),
                      {noreply, State#rules_worker_state{priority_queue = New_PQ, transaction_state = {started_transaction, New_clock + 1, Transaction_list, Act}}};
                    false ->
                      {noreply, State#rules_worker_state{priority_queue = New_PQ}}
@@ -192,7 +194,7 @@ handle_info({handle_next_action}, State = #rules_worker_state{id = Id, state_ser
                                                  {ok, Active_neighbs} = state_server:get_active_neighb(Server),
                                                  spawn(comm_OUT, init, [{transact_ack, Id, Action_clock, Id_gen, Id}, Active_neighbs]),
                                                  % faccio partire un timer per uscire dalla transazione dopo x secondi
-                                                 erlang:send_after(5000, self(), {transact_timeout_ended, Id_gen, Action_clock}),
+                                                 erlang:send_after(?TIMER_WAIT_TRANSACTION_COMMIT, self(), {transact_timeout_ended, Id_gen, Action_clock}),
                                                  {waiting_commit, Id_gen, Action_clock, Action};
                                                false ->
                                                  {none}

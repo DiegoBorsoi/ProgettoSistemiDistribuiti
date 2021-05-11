@@ -1,5 +1,7 @@
 -module(hb_OUT).
 
+-include("../config/config_timer.hrl").
+
 %% API
 -export([init/3]).
 
@@ -14,10 +16,10 @@ send_to_neighb(Msg, Neighbs) ->
   case Msg of
     {echo_rqs, HB_name} ->
       % viene fatto partire un timer che dopo 5 secondi invia il messaggio all'Heartbeat
-      erlang:send_after(5000, HB_name, {echo_timer_ended});
+      erlang:send_after(?TIMER_ECHO, HB_name, {echo_timer_ended});
     {add_new_nd, _Id, HB_name} ->
       % dopo 10 secondi un messaggio viene inviato, serve per mettere un tempo massimo nell'attesa dei messaggi di risposta nella connessione alla rete
-      erlang:send_after(10000, HB_name, {add_timer_ended});
+      erlang:send_after(?TIMER_WAIT_ADD, HB_name, {add_timer_ended});
     _ ->
       ok
   end.
