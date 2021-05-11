@@ -24,7 +24,7 @@ kill_foglia() ->
 
 % viene ucciso un nodo normale della rete (cioè ne foglia ne radice)
 % vederemo come il nodo figlio del nodo mancante cercherà di riconnettersi alla rete tramite gli altri vicini che ha a disposizione
-% la radice non verrà però accettata subito, essendo la medesima, ma solamente una volta passato il timer (TODO)
+% la radice non verrà però accettata subito, essendo la medesima, ma solamente una volta passato il timer TIMER_TREE_RESET_ROUTE
 % verrà eseguita nuovamente una proposta ai vicini, i quali proporranno in risposta la giusta radice
 kill_node() ->
   ambiente:start_link("graphs/graph_test"),

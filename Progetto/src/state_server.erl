@@ -403,8 +403,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-% TODO: unire le due funzioni
-
 % controlla se le variabili all'interno della guardia non sono state modificate dopo Action_clock
 check_external_guard_vars_clock(Action_clock, Guard, VT) ->
   case Guard of
