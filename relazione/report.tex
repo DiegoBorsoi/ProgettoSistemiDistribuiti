@@ -11,8 +11,8 @@
 \usepackage{minted}
 \usepackage{xcolor}
 \usepackage{color}
+\usepackage{tcolorbox}
 
-%\usepackage[toc,page]{appendix}
 \usepackage{titlesec}
 
 \graphicspath{{./draws/}}
@@ -23,7 +23,7 @@
 \author{Dott. Borsoi Diego\\Dott. Callegari Filippo\\ DMIF, University of Udine,
 	   Italy\\(also the authors are distributed)}
 
-\date{Version $\frac{1}{4}$, \today}
+\date{Version $\frac{3}{4}$, \today}
 
 \begin{document}
 
@@ -666,109 +666,91 @@ Nel caso in cui la transazione vada a buon fine, l'azione viene eseguita utilizz
 
 \end{description}
 
-\section{Ambiente e la comunicazione con i nodi}
-funzionalità dell'ambiente come:
-\begin{minted}[
-frame=lines,
-framesep=2mm,
-baselinestretch=1.2,
-fontsize=\footnotesize,
-linenos=true, %samepage=true
-]{erlang}
-%% client functions
--export([ignore_neighb/2, kill_node/1, ...(?)]).
+\section{Ambiente e comunicazione con i nodi}
+Il modulo \textit{ambiente} risulta essere quel processo dedito a virtualizzare il mondo fisico dove normalmente i nodi coopererebbero. Questo modulo è quindi essenziale per il funzionamento e la coordinazione dei nodi e delle azioni nel ``mondo'' messo a disposizione da \textit{Erlang}.
 
--record(ambiente_state, {
-  graph,     %ets del grafo
-  id_spwn,
-  comm_spwn,
-  id_sup_node
-}).
-\end{minted}
+Lo stato dell'ambiente risulta esser caratterizzato da:
+\begin{itemize}
+    \item un grafo della rete;
+    \item la mappa degli id per comunicare con ogni nodo, specificamente:
+    \begin{itemize}
+        \item la mappa per identificare il pid del thread;
+        \item la mappa per identificare il processo per ricevere le comunicazioni dall'ambiente per ogni nodo;
+        \item la mappa del supervisor di ogni nodo.
+    \end{itemize}
+\end{itemize}
+Queste variabili servono a fronteggiare alle funzionalità da lui offerte, quali:
+\begin{enumerate}
+    \item simulare la rottura di un link tra due nodi;
+    \item aggiungere un nodo;
+    \item inviare un'azione specifica ad un nodo;
+    \item terminare l'esistenza di un nodo;
+    \item terminare la ``virtualizzazione'' del mondo.
+\end{enumerate}
+Compito essenziale dell'ambiente risulta essere quello di generare la rete e rendere consistente il grafo rappresentativo della stessa: proprio grazie a questo potremo simulare con semplicità le variazioni fisiche del grafo dovuti ad azioni nella rete stessa.\\
+Esempio della descrizione del grafo sarà:
+\begin{tcolorbox}[colback=yellow!5!white,colframe=lime!75!black,title=Grafo totalmente connesso]
+%    \begin{verbatim}
+%[bad, gen].            %$\displaystyle \leftarrow$ tipi dei nodi possibili nel grafo
+%[
+%  {a, gen, []},      %$\leftarrow$ identificativo del nodo, tipo, vicini
+%  {b, gen, [a]},
+%  {c, gen, [a, b]},
+%  {d, bad, [a, b, c]}
+%].
+%    \end{verbatim}
+\begin{center}
+\begin{tabular}{ll} 
+\texttt{[bad, gen].} & \texttt{\%}$\displaystyle \leftarrow$ \texttt{tipi dei nodi possibili nel grafo} \\ 
 
-come comunico con il nodo?\\
-comm\_ambiente aiutaci tu!
-\begin{minted}[
-frame=lines,
-framesep=2mm,
-baselinestretch=1.2,
-fontsize=\footnotesize,
-linenos=true, %samepage=true
-]{erlang}
-%% client functions
--export([add_neighb/2, ignore_neighb/2]).
+\texttt{[} &  \\ 
 
--record(comm_ambiente_state, {
-  name,
-  server_name,
-  rules_worker_name,
-  hb_name
-}).
+\texttt{~~{a, gen, []},} &  \texttt{\%}$\displaystyle \leftarrow$ \texttt{id, tipo, vicini}\\ 
 
-init([Name, Server_name, Rules_worker_name, HB_name, Id]) ->
-  ambiente ! {nodo_avviato, Name, {Id, HB_name}},  % IMPORTANTE: l'ambiente deve essere registrato sotto il nome "ambiente"
-  self() ! {start_discovery},
-  {ok, #comm_ambiente_state{name = Name, server_name = Server_name, rules_worker_name = Rules_worker_name, hb_name = HB_name}}.
+\texttt{~~{b, gen, [a]},} &  \\ 
 
-handle_cast({add_neighb, Node = {_Node_ID, _Node_HB_name}}, State = #comm_ambiente_state{server_name = Server}) ->
-  state_server:add_neighb(Server, Node),
-  {noreply, State};
-handle_cast({ignore_neighb, Neighb}, State = #comm_ambiente_state{server_name = Server}) ->
-  state_server:ignore_neighb(Server, Neighb),
-  {noreply, State};
-handle_cast(_Request, State = #comm_ambiente_state{}) ->
-  {noreply, State}.
-  
-handle_info({start_discovery}, State = #comm_ambiente_state{server_name = SN, hb_name = HBN}) ->
-  % richiedo all'ambiente di inviarmi la lista dei vicini
-  receive
-    {discover_neighbs, _Neighbs_list = []} ->
-      ok;
-    {discover_neighbs, Neighbs_list = [_ | _]} ->
-      io:format("Ricevuta lista di vicini: ~p.~n", [Neighbs_list]),
-      state_server:add_neighbs(SN, Neighbs_list)
-  end,
-  HBN ! {neighb_ready},
-  {noreply, State};
-  
-\end{minted}
-%\chapter{Implementation}
-%
-%Details about the implementation: every choice about platforms, languages, software/hardware,
-%	   middlewares, which has not been decided in the requirements.
-%
-%
-%Important choices about implementation should be described here; e.g., peculiar
-%	   data structures.
+\texttt{~~{c, gen, [a, b]},} &  \\ 
 
+\texttt{~~{d, gen, [a, b, c]},} &  \\ 
+
+\texttt{].} &  \\ 
+\end{tabular} 
+\end{center}
+\end{tcolorbox}
+
+Tutte queste funzionalità messe a disposizione da questo modulo saranno sfruttate a pieno per il capitolo successivo, ovvero la fase di test e la fase di validazione del progetto.\\
+~\\
+
+Altro paragrafo si apre per il modulo ``\textit{comm\_ambiente}''. Questo modulo si occupa di domandare o ricevere le direttive dal processo dell'ambiente. Le funzioni offerte sono descritte di seguito.
+\begin{description}
+    \item \textbf{Aggiunta di un nodo:}\\
+        ogni nodo, quando deve aggiungere un nuovo nodo, deve ricevere in ingresso i ``puntatori'' ai processi di \textit{hearbeat} e di \textit{comm\_in} del nuovo nodo vicino, al fine di poter attuare tutti i servizi previsti da progetto.
+    \item \textbf{Ignorare un vicino:}\\
+        ogni nodo, quando apprenderà dall'ambiente che un link si è rotto, smetterà di inoltrare tutti i messaggi verso di lui. Tutti i meccanismi precedentemente descritti sopperiranno alla mancanza di comunicazione: il caso peggiore risulta quindi essere quando la rete si partizione, ovvero quando un nodo risulta isolato nella rete (quindi, non ha vicini).
+    \item \textbf{Esecuzione di un'azione:}\\
+        al fine di simulare la variazione di una variabile dipendente dall'ambiente (es.: il valore di una termocoppia, l'umidità dell'ambiente,...), il modulo deve poter accettare delle direttive dall'ambiente (e quindi delle azioni) da eseguire per modificare lo stato delle variabili interne, anche eseguendo delle regole locali, globali o delle transazioni.
+    \item \textbf{Ricerca dei vicini:}\
+            altra funzionalità essenziale offerta da questo modulo risulta essere, in fase di avvio del nodo, la gestione della ricezione della lista dei vicini da parte dell'ambiente.\\
+            Come precedentemente accennato, l'ambiente provvedere a memorizzare il grafo della rete partendo da un file descrittivo dell'ambiente stesso: essendo l'ambiente stesso colui che genera ed avvia i nodi nella rete, avrà anche il compito di informare ogni nodo dei suoi vicini.  
+        
+\end{description}
+
+Alcuni passaggi interessanti sono allegati in appendice \ref{code:ambiente} e \ref{code:commambiente}.
+
+
+\chapter{Validazione}
+
+mostriamo i vari test descrivendoli
+
+controlliamo che siano validi secondi trasparenze (con qualche listato? del terminale)
+
+\chapter{Conclusioni}
+Mi piace lavorare con diego perché è un bel bimbo autonomo $\heartsuit$
 
 %\chapter{Validation}
 %
 %Check if requirements from Chapter~\ref{ch:analysis} have been fulfilled.
 %Quantitative tests (simulations) and screenshots of the interfaces are put here.
-
-%\chapter*{Evaluation}
-%Your system will be judged mainly on how it operates as a distributed system. The
-%	   primary evaluation will be according to whether your system has the following
-%	   attributes:
-%\begin{itemize}
-%\item  It should be an interesting distributed system, making use of some of the
-%	   algorithms we have covered in class for distributed synchronization, replication,
-%	   fault tolerance and recovery, security, etc.
-%\item The software should be well designed and well implemented, in terms of the
-%	   overall architecture and the detailed realization.
-%\item You should devise and apply systematic testing procedures, at both the unit
-%	   and systems levels.
-%\item The system should operate reliably and with good performance, even in the
-%	   face of failures.
-%\end{itemize}
-%Important, but secondary considerations include:
-%\begin{itemize}
-%\item Time taken to do the project (the sooner the better, but do not miss details
-%	   in order to end sooner)
-%\item  How nice is the application's appearance: does it have a nice interface or
-%	   a compelling visual display?
-%\end{itemize}
 
 %\chapter{Conclusions}
 %
@@ -1101,7 +1083,8 @@ check_condition(Cond, VT, PT) ->
     {} ->
       true;
     {Op, Var1, Var2} -> % operazioni di arità 2: lt, lte, gt, gte, eq, neq
-      % nel caso in cui le variabili siano atomi (quindi vere e proprie variabili) devo ottenere il valore corrispondente
+      % nel caso in cui le variabili siano atomi (quindi vere e proprie variabili) 
+      %devo ottenere il valore corrispondente
       % altrimenti sono dei semplici numeri e quindi li uso così come sono
       Real_var1 = if
                     is_atom(Var1) ->
@@ -1162,6 +1145,103 @@ check_condition(Cond, VT, PT) ->
       io:format("State server - check_condition condizione non riconosciuta: ~p.~n", [Cond]),
       false
   end.
+\end{minted}
+
+\chapter{Ambiente}\label{code:ambiente}
+\begin{minted}[
+frame=lines,
+framesep=2mm,
+baselinestretch=1.2,
+fontsize=\footnotesize,
+linenos=true, %samepage=true
+]{erlang}
+[...]
+init([GraphFile]) ->
+  {ok, [Types, GraphList]} = file:consult(GraphFile),
+  CF = utils:check_graph(Types, GraphList),
+  if
+    CF ->
+      ambiente ! {start_nodes};
+    true ->
+      io:format("Errore nel grafo descritto in ~p.~n", [GraphFile])
+  end,
+  Graph = ets:new(graph, [
+    set,
+    public,
+    {keypos, 1},
+    {heir, none},
+    {write_concurrency, false},
+    {read_concurrency, true},
+    {decentralized_counters, false}
+  ]),
+  ets:insert(Graph, GraphList),
+  process_flag(trap_exit, true),
+  {ok, #ambiente_state{graph = Graph, id_spwn = maps:new(), comm_spwn = maps:new(), id_sup_node = maps:new()}}.
+
+[...]
+
+handle_info({start_nodes}, 
+    State = #ambiente_state{graph = Graph, 
+  id_sup_node = LSN}) ->
+  NewLSN = lists:foldr(
+    fun(_Node = {Id, Tp, _}, Map) ->
+      {ok, Pid} = supervisor_nodo:start_link(Id, Tp),
+      maps:put(Id, Pid, Map)
+    end,
+    LSN,
+    ets:tab2list(Graph)),
+  {noreply, State#ambiente_state{id_sup_node = NewLSN}};
+handle_info({nodo_avviato, Name, {Id, HB_name}}, 
+            State = #ambiente_state{graph = Graph, id_spwn = ID_Spwn, comm_spwn = Comm}) ->
+  [[NeightboardsList]] = ets:match(Graph, {Id, '_', '$1'}),
+  NBL = [{Node, maps:get(Node, ID_Spwn)} || Node <- NeightboardsList, maps:is_key(Node, ID_Spwn)],
+  Name ! {discover_neighbs, NBL},
+  % controllo della constistenza del grafo
+  lists:foreach(fun(Node) ->
+    [{IdN, Tpe, NBlist}] = ets:lookup(Graph, Node),
+    NNBlist = ((NBlist -- [Id]) ++ [Id]),
+    ets:insert(Graph, {IdN, Tpe, NNBlist})
+                end,
+    NeightboardsList
+  ),
+  {noreply, State#ambiente_state{id_spwn = maps:put(Id, HB_name, ID_Spwn), 
+                                 comm_spwn = maps:put(Id, Name, Comm)}};
+\end{minted}
+
+\chapter{Comunicazioni dall'ambiente}\label{code:commambiente}
+\begin{minted}[
+frame=lines,
+framesep=2mm,
+baselinestretch=1.2,
+fontsize=\footnotesize,
+linenos=true, %samepage=true
+]{erlang}
+[...]
+
+init([Name, Server_name, Rules_worker_name, HB_name, Id]) ->
+ % IMPORTANTE: l'ambiente deve essere registrato sotto il nome "ambiente"
+  ambiente ! {nodo_avviato, Name, {Id, HB_name}},
+  self() ! {start_discovery},
+  {ok, #comm_ambiente_state{name = Name,
+                            server_name = Server_name,
+                            rules_worker_name = Rules_worker_name, 
+                            hb_name = HB_name}}.
+
+[...]
+
+handle_info({start_discovery}, State = #comm_ambiente_state{server_name = SN, hb_name = HBN}) ->
+  % richiedo all'ambiente di inviarmi la lista dei vicini
+  receive
+    {discover_neighbs, _Neighbs_list = []} ->
+      ok;
+    {discover_neighbs, Neighbs_list = [_ | _]} ->
+      io:format("Ricevuta lista di vicini: ~p.~n", [Neighbs_list]),
+      state_server:add_neighbs(SN, Neighbs_list)
+  end,
+  HBN ! {neighb_ready},
+  {noreply, State};
+
+[...]
 \end{minted}
 
 \end{document}
