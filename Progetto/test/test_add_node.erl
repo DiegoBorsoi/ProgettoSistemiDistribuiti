@@ -1,7 +1,7 @@
 -module(test_add_node).
 
 %% API
--export([add_foglia/0, add_root/0]).
+-export([add_foglia/0, add_radice/0]).
 
 %%%=================================================================================================================
 %%% Viene testato il funzionamento della rete nel momento in cui un nodo viene aggiunto alla rete
@@ -28,7 +28,7 @@ add_foglia() ->
 
 % viene aggiunto un nuovo nodo che dovrà diventare la nuova radice
 % quindi al momento dell'aggiunta il messaggio della nuova radice dovrà propagarsi a tutti i nodi
-add_root() ->
+add_radice() ->
   ambiente:start_link("graphs/graph_test"),
   % aspetto che la rete si stabilizzi
   timer:sleep(10000),

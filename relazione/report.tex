@@ -86,7 +86,7 @@ Di seguito sono descritte le trasparenze che concergono e sono implementate dal 
 
 \begin{description} 
 \item[Trasparenza ai fallimenti:] nel momento in cui un nodo fallisce/si disconnette,
-	   il resto della rete continua a funzionare normalmente.
+	   il resto della rete continua a funzionare regolarmente, senza quindi avere delle interruzioni nel normale svolgimento degli eventi.
 \item[Trasparenza alla scalabilità:] la rete può espandersi in dimensione senza
 	   che il funzionamento dei nodi vari.
 \item[Trasparenza alla mobilità:] un nodo può spostarsi all'interno della rete
@@ -679,7 +679,7 @@ Lo stato dell'ambiente risulta esser caratterizzato da:
         \item la mappa del supervisor di ogni nodo.
     \end{itemize}
 \end{itemize}
-Queste variabili servono a fronteggiare alle funzionalità da lui offerte, quali:
+Queste variabili servono da supporto per le funzionalità da lui offerte, quali:
 \begin{enumerate}
     \item simulare la rottura di un link tra due nodi;
     \item aggiungere un nodo;
@@ -740,9 +740,47 @@ Alcuni passaggi interessanti sono allegati in appendice \ref{code:ambiente} e \r
 
 \chapter{Validazione}
 
-mostriamo i vari test descrivendoli
+Come presentato nell'analisi inizale (\ref{Trasparenze}) le varie trasparenze sono state implementate dal sistema:
+\begin{description} 
+\item[Trasparenza ai fallimenti:]~\\ nel momento in cui un nodo cessa di funzionare, od una connessione fra due nodi viene a mancare, il sistema reagisce adeguatamente. Il fallimento viene rilevato nel momento in cui la risposta ai messaggi di echo viene a mancare; una volta individuato il malfunzionamento, il nodo aggiorna la propria tabella dei vicini e successivamente il protocollo di \textit{spanning~tree} entra in azione per l'aggiornamento della rete, se necessario.
+\item[Trasparenza alla scalabilità:]~\\ la rete può espandersi in dimensione senza che il funzionamento dei nodi vari. Ogni nodo conosce solamente i suoi vicini, questo permette di aggiungere un nuovo nodo alla rete semplicemente comunicando con i rispettivi vicini, i quali rispondereanno in accordo ai vari protocolli usati.
+\item[Trasparenza alla mobilità:]~\\ un nodo può spostarsi all'interno della rete senza che il funzionameto suo e degli altri nodi vada a modificarsi. Semplicemente quando un nodo si sposta, elimina dalla lista dei suoi vicini i nodi con cui non può più comunicare ed inserisce quelli nuovi, inizializzando una nuova connessione tramite i protocolli presentati.
+\end{description}
 
-controlliamo che siano validi secondi trasparenze (con qualche listato? del terminale)
+\section{Verifica dei requisiti funzionali}
+
+Di seguito andremo a verificare se tutti i requisiti funzionali presentati precedentemente (paragrafo \ref{sec:funcReq}) sono stati soddisfatti o meno.
+
+\begin{description}
+\item[Categorizzazione di un nodo:]~\\ ogni nodo al momento dell'istanziazione deve ricevere in input il tipo di appartenenza;
+\item[Modifica delle regole di un nodo:]~\\ ogni tipo di nodo ha le sue regole, codificabili attraverso la programmazione dello stesso: ogni qualvolta un nodo verrà istanziato andrà a caricare da un file apposito la lista di variabili e le regole specifiche per il suo tipo;
+\item[Modifica dello stato di un nodo:]~\\ ogni evento avrà degli \textit{effetti locali}, degli \textit{effetti globali} o degli \textit{effetti transazionali}:
+	\begin{itemize}
+	\item \textit{\textbf{effetti locali}}: la regola modifica lo stato interno tramite l'utilizzo delle funzioni fornite dallo \textit{state\_server};
+	\item \textit{\textbf{effetti globali}}: la regola genera un evento che sarà propagato a tutti i nodi della rete utilizzando i meccanismi di comunicazione internodo (\textit{flooding} o tramite \textit{spanning~tree});
+	\item \textit{\textbf{effetti transizionali}}: regola simile ad una globale, ma con la differenza che l'esecuzione avverrà in tutti i nodi coinvolti ``contemporaneamente'', posticipando qualunque altra azione ricevuta fra l'accettazione della transazione e la sua eventuale esecuzione;
+	\end{itemize}
+\item[Aggiunta dinamica di un nodo:]~\\ un nodo può essere aggiunto alla rete in qualsiasi momento senza perturbarne la dinamicità, coinvolgendo solamente i vicini a cui si collega. All'atto dell'aggiunta verranno scambiate le informazioni necessarie per la partecipazione alla rete seguendo le istruzioni fornite dai protocolli.
+\item[Esecuzione di un'azione ricevuta dai vicini:]~\\ nel momento in cui un nodo riceve un messaggio dai propri vicini, esso va a verificare la soddisfacibilità della guardia (se presente) e nel caso di una valutazione positiva verrà eseguita l'azione associata, andando quindi a modificare il proprio stato.
+\item[Attivazione di una regola:]~\\ ogni qualvolta avviene un cambiamento nello stato di un nodo, viene eseguito un controllo delle regole, verificando se gli eventi generati hanno attivato una o più regole del nodo; nel caso in cui una regola venga attivata, in base al tipo (locale, globale o transazione), viene portata a termine l'azione corrispondente, dando precedenza a quelle locali.
+\end{description}
+
+Procediamo quindi alla verifica puntuale dei requisiti appena descritti.
+
+\section{Test delle funzionalità}
+
+Sono stati eseguiti come segue:
+
+\subsection{Test aggiunta di un nodo: \texttt{test\_add\_node.erl}}
+
+Questo test va a verificare che l'aggiunta di un nodo avvenga in maniera dinamica e conforme al requisito funzionale descritto precedentemente.
+Si divide in due casi:
+\begin{itemize}
+\item aggiunta di un nodo che non diventerà la nuova radice (funzione \texttt{add\_foglia})
+\item aggiunta di un nodo con identificativo minore e quindi sarà eletta nuova radice della rete (funzione \texttt{add\_radice})
+\end{itemize}
+
+
 
 \chapter{Conclusioni}
 Mi piace lavorare con diego perché è un bel bimbo autonomo $\heartsuit$
