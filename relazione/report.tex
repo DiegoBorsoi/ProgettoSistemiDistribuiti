@@ -20,10 +20,10 @@
 %\title{How to write a Report\\ for the Project of Distributed Systems}
 \title{Progetto di Sistemi Distribuiti}
 
-\author{Dott. Borsoi Diego\\Dott. Callegari Filippo\\ DMIF, University of Udine,
+\author{Borsoi Diego - n°129804\\Callegari Filippo -  n°128602\\ DMIF, University of Udine,
 	   Italy\\(also the authors are distributed)}
 
-\date{Version $\frac{3}{4}$, \today}
+\date{\today}
 
 \begin{document}
 
@@ -767,7 +767,7 @@ La rete testata è formata come segue:
 \end{figure}
 I nodi in verde son o i nodi che possono esser aggiunti durante i vari test, l'arco in arancione sarà l'arco che verrà ``disabilitato'' durante il test, i nodi in rosso sono quelli che durante i test possono esser rimossi. 
 
-Sono stati eseguiti come segue:
+I test sono stati eseguiti come segue (istruzioni per l'uso nell'appendice \ref{istruzioni}):
 
 \subsection{Test aggiunta di un nodo: \texttt{test\_add\_node.erl}}
 
@@ -1057,7 +1057,7 @@ La funzione per testare la funzionalità è:
 \begin{itemize}
     \item \texttt{remove\_connection}: la funzione impone ad un nodo di ignorare un vicino.
 \end{itemize}
-L'esecuzione della funzione viene lasciata come esercizio al lettore.
+
 
 \subsection{Test della scomparsa di un nodo: \texttt{test\_kill\_node.erl}}
 in questo test si verifica la resistenza del sistema alla morte ``accidentale'' dei suoi nodi. Le funzioni a disposizione per testare il sistema sono:
@@ -1069,26 +1069,18 @@ in questo test si verifica la resistenza del sistema alla morte ``accidentale'' 
 
 
 \chapter{Conclusioni}
-Mi piace lavorare con diego perché è un bel bimbo autonomo $\heartsuit$
 
-%\chapter{Validation}
-%
-%Check if requirements from Chapter~\ref{ch:analysis} have been fulfilled.
-%Quantitative tests (simulations) and screenshots of the interfaces are put here.
+Per quanto riguarda le funzionalità base del sistema, risultano tutte totalmente implementate e consistenti rispetto a quanto proposto in fase di analisi. I requisiti funzionali e non funzionali risultano rispettati nella loro interezza, come visto nel capitolo precedente.
 
-%\chapter{Conclusions}
-%
-%What has been done with respect to what has been promised in Chapters~\ref{ch:intro}
-%	   and \ref{ch:analysis}, and what is left out.
-
+Per quanto riguarda invece le funzionalità avanzate, c'è stata la predisposizione del codice per una facile implementazione delle stesse, però non è stato possibile implementarle:
+\begin{itemize}
+\item in merito al sistema avanzato d'esecuzione delle regole è stato predisposto l'iterprete da estendere con le istruzioni annidabili (quali and, or, not, ecc.);
+\item il salvataggio dello stato del nodo su file può essere facilmente implementato grazie l'ausilio delle tabelle di ets date a disposizione dal linguaggio, che quindi andrebbero sostituite cone delle dets, sempre fornite da Erlang;
+\item per quanto riguarda la riprogrammazione dinamica di un nodo non è stata fatta alcuna predisposizione: risulta essere comunque facilmente implementabile tramite l'aggiunta di apposite funzioni nel modulo \textit{comm\_ambiente} che andrebbero ad appoggiarsi ad altre inseribili nel modulo \textit{state\_server};
+\item invece per quanto concerne un possibile \textit{calculus}, data la verifica mediante test risulta possibile la sua teorizzazione. Ovviamente richiede ulteriori studi ed approfondimenti.
+\end{itemize}
 
 
-%\appendix
-%
-%\chapter{Appendix}
-%
-%In the Appendix you can put code snippets, snapshots, installation instructions,
-%	   etc.
 \appendix
 \titleformat{\chapter}[display]
   {\normalfont\large\bfseries}% <- font for label "Appendix A", default \huge
@@ -1096,6 +1088,20 @@ Mi piace lavorare con diego perché è un bel bimbo autonomo $\heartsuit$
   {10pt}
   {\large}% <- font for title, default \Huge
 \titlespacing{\chapter}{0pt}{*4}{*1}
+
+\chapter{Istruzioni d'utilizzo}\label{istruzioni}
+
+Per la compilazione ed esecuzione del codice bisogna seguire i seguenti passi:
+\begin{enumerate}
+\item Trovandosi nella cartella del progetto aprire una console ed eseguire il comando: \texttt{erl -make}. Questo permette di compilare tutti i file, andando ad inserire tutti i file binari all'interno della cartella ebin.
+\item A questo punto per testare il progetto bisgona inanzitutto aprire la console di erlang. Per fare ciò, da una console sempre nella cartella del progetto, basta eseguire un'istruzione in base al sistema operativo utilizzato:
+\begin{itemize}
+\item \textbf{Windows:} \texttt{werl -pa ebin}
+\item \textbf{Unix based systems:} \texttt{erl -pa ebin} 
+\end{itemize}
+\item Ora nella console di erlang è sufficiente chiamare le funzioni che si vogliono testare.
+\end{enumerate}
+
 \chapter{Supervisors}\label{code:supervisor}
 \begin{minted}[
 frame=lines,
