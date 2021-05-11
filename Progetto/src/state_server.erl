@@ -300,7 +300,7 @@ handle_call({reset_tree_state}, _From, State = #server_state{id = Id, neighb_tab
   ets:insert(NpT, {tree_state, {Id, 0, Id}}),
 
   % faccio partire un timer per vedere se la struttura dell'albero resta stabile
-  erlang:send_after(3000, self(), {tree_state_timeout_ended, {Id, 0, Id}}),
+  erlang:send_after(6500, self(), {tree_state_timeout_ended, {Id, 0, Id}}),
   {reply, ok, State#server_state{is_tree_stable = false}};
 handle_call({set_tree_state, Tree_state = {Id_root, _Dist, Id_RP}}, _From, State = #server_state{neighb_table = NT, node_params_table = NpT}) ->
   [[{Old_root, _Old_dist, Old_RP}]] = ets:match(NpT, {tree_state, '$1'}), % cerco il vecchio stato dell'albero
@@ -322,7 +322,7 @@ handle_call({set_tree_state, Tree_state = {Id_root, _Dist, Id_RP}}, _From, State
   ets:insert(NT, {Id_RP, HB_RP, route_port}),
 
   % faccio partire un timer per vedere se la struttura dell'albero resta stabile
-  erlang:send_after(3000, self(), {tree_state_timeout_ended, Tree_state}),
+  erlang:send_after(6500, self(), {tree_state_timeout_ended, Tree_state}),
   {reply, ok, State#server_state{is_tree_stable = false}};
 handle_call({set_tree_active_port, ID_port}, _From, State = #server_state{neighb_table = NT}) ->
   try
@@ -377,12 +377,12 @@ handle_info({tree_state_timeout_ended, Old_Tree_state}, State = #server_state{no
       New_ITS = ITS
   end,
   {noreply, State#server_state{is_tree_stable = New_ITS}};
-handle_info(get_neighb_all, State = #server_state{neighb_table = NT}) -> % debug
+handle_info(get_neighb_all, State = #server_state{id = Id, neighb_table = NT}) -> % debug
   Neighbs = ets:tab2list(NT),
-  io:format("Vicini: ~p.~n", [Neighbs]),
+  io:format("~p: Vicini: ~p.~n", [Id, Neighbs]),
   {noreply, State};
-handle_info(get_vars, State = #server_state{vars_table = VT}) -> % debug
-  io:format("Vars table: ~p.~n", [ets:tab2list(VT)]),
+handle_info(get_vars, State = #server_state{id = Id, vars_table = VT}) -> % debug
+  io:format("~p: Vars table: ~p.~n", [Id, ets:tab2list(VT)]),
   {noreply, State};
 handle_info(Msg, State) ->  % per gestire messaggi sconosciuti
   io:format("Unknown msg: ~p.~n", [Msg]),

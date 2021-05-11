@@ -2,13 +2,13 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start_link/1]).
+-export([start/0, start/1, start_link/0, start_link/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% client functions
--export([ignore_neighb/2, kill_node/1]).
+-export([ignore_neighb/2, kill_node/1, add_node/3, stop_ambiente/0, send_action/3]).
 
 -record(ambiente_state, {
   graph,     %ets del grafo
@@ -21,8 +21,14 @@
 %%% API
 %%%===================================================================
 
+start() ->
+  gen_server:start({local, ambiente}, ?MODULE, ["graphs/graph"], []).
+
+start(Graph_file_name) ->
+  gen_server:start({local, ambiente}, ?MODULE, [Graph_file_name], []).
+
 start_link() ->
-  gen_server:start_link({local, ambiente}, ?MODULE, ["graph"], []).
+  gen_server:start_link({local, ambiente}, ?MODULE, ["graphs/graph"], []).
 
 start_link(Graph_file_name) ->
   gen_server:start_link({local, ambiente}, ?MODULE, [Graph_file_name], []).
@@ -36,6 +42,15 @@ ignore_neighb(Id_ignoring, Id_ignored) ->
 
 kill_node(Id) ->
   gen_server:cast(ambiente, {kill_node, Id}).
+
+add_node(Id, Type, Neighb_list) ->
+  gen_server:call(ambiente, {add_node, Id, Type, Neighb_list}).
+
+stop_ambiente() ->
+  gen_server:cast(ambiente, {stop}).
+
+send_action(Id, Clock, Action) ->
+  gen_server:call(ambiente, {send_action, Id, Clock, Action}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -64,6 +79,27 @@ init([GraphFile]) ->
   {ok, #ambiente_state{graph = Graph, id_spwn = maps:new(), comm_spwn = maps:new(), id_sup_node = maps:new()}}.
 
 
+handle_call({add_node, Id, Type, Neighb_list}, _From, State = #ambiente_state{graph = Graph, id_sup_node = LSN}) ->
+  case ets:lookup(Graph, Id) of
+    [] -> % il nuovo Id non è già presente, quindi lo posso agiungere
+      {ok, Pid} = supervisor_nodo:start_link(Id, Type),
+      NewLSN = maps:put(Id, Pid, LSN),
+
+      ets:insert(Graph, {Id, Type, Neighb_list}),
+      {reply, ok, State#ambiente_state{id_sup_node = NewLSN}};
+    _ ->
+      io:format("ambiente: l'ID passato è già presente nella rete.~n"),
+      {reply, ok, State}
+  end;
+handle_call({send_action, Id, Clock, Action}, _From, State = #ambiente_state{comm_spwn = Comm}) ->
+  try
+    Node_comm = maps:get(Id, Comm),
+    comm_ambiente:exec_action(Node_comm, Clock, Action)
+  catch
+    _ : _ ->
+      io:format("ambiente: l'ID passato non è presente.~n")
+  end,
+  {reply, ok, State};
 handle_call(_Request, _From, State = #ambiente_state{}) ->
   {reply, ok, State}.
 
@@ -100,6 +136,9 @@ handle_cast({kill_node, Id}, State = #ambiente_state{id_sup_node = MsupNode}) ->
       io:format("ambiente: unable to locate child(~p).\n", [Id])
   end,
   {noreply, State};
+handle_cast({stop}, State = #ambiente_state{id_sup_node = MsupNode}) ->
+  [exit(Pid_sup_node, shutdown) || Pid_sup_node <- maps:values(MsupNode)],
+  {stop, normal, State};
 handle_cast(_Request, State = #ambiente_state{}) ->
   {noreply, State}.
 
